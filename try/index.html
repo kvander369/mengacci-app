@@ -1,0 +1,860 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#1E5A3C">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Mengacci">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" href="icon-192.png">
+<title>Mengacci $$</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap">
+<style>
+  /* Mengacci $$ V1. The screens are the ones settled on the mock (docs/DESIGN.md);
+     the rules are app/scoring.js (docs/RULES.md). Kyle reads with bifocals: big
+     type, one scale, no instructions on screen. */
+  :root{
+    --bg:#E9EFE8; --panel:#FBFCFA; --ink:#16241C; --muted:#5C6B61; --line:#CBD6CD;
+    --green:#1E5A3C; --green-ink:#F4F8F4; --green-soft:#DCEADF;
+    --gold:#A8781F; --gold-soft:#F5EBD3;
+    --dead:#8F3F30; --dead-soft:#F4E1DC;
+    --key:#FFFFFF; --key-ink:#16241C; --key-down:#D7E4D9; --key-edge:#C4D2C7;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:"Barlow",system-ui,-apple-system,"Segoe UI",Arial,sans-serif;font-size:16px;line-height:1.35;
+    -webkit-text-size-adjust:100%;touch-action:manipulation;overscroll-behavior:none}
+  button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent}
+  button:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+
+  /* the phone column: fixed height, the middle scrolls, the pad stays put */
+  .phone{display:flex;flex-direction:column;background:var(--panel);height:100vh;height:100dvh;overflow:hidden;max-width:430px;margin:0 auto}
+  @media (min-width:600px){
+    body{padding:20px 0}
+    .phone{height:min(880px,calc(100dvh - 40px));min-height:0;border-radius:38px;border:9px solid #1B1F1C;overflow:hidden;box-shadow:0 30px 60px rgba(0,0,0,.28)}
+  }
+
+  .top{background:var(--green);color:var(--green-ink);padding:calc(14px + env(safe-area-inset-top)) 18px 12px;display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex:none}
+  .tophead{display:flex;align-items:center;gap:12px;min-width:0}
+  .logo{width:46px;height:46px;flex:none;object-fit:contain;background:var(--green-ink);border-radius:50%;padding:3px}
+  .eyebrow{font-family:"Barlow Condensed",sans-serif;font-weight:600;letter-spacing:.12em;text-transform:uppercase;font-size:12px;opacity:.85}
+  .top h1{font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:26px;margin:2px 0 0;line-height:1}
+  .top .right{font-family:"Barlow Condensed",sans-serif;font-size:15px;font-weight:600;text-align:right;opacity:.9;white-space:nowrap}
+  .tabs{display:flex;flex:none;border-bottom:1px solid var(--line);background:var(--panel)}
+  .tab{flex:1;border:0;background:transparent;padding:10px 4px 8px;font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:19px;color:var(--muted);border-bottom:3px solid transparent}
+  .tab.on{color:var(--green);border-bottom-color:var(--green)}
+
+  .scroll{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:12px 16px calc(12px + env(safe-area-inset-bottom))}
+  .stack{display:flex;flex-direction:column;gap:10px}
+
+  .lbl{font-family:"Barlow Condensed",sans-serif;font-weight:600;letter-spacing:.1em;text-transform:uppercase;font-size:13px;color:var(--muted)}
+  .big{font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:32px;line-height:1;font-variant-numeric:tabular-nums}
+  .muted{color:var(--muted)}
+  .note{font-size:15px;color:var(--muted)}
+  .sect{font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:22px;line-height:1.1;color:var(--ink);padding-top:6px}
+
+  .btn{display:block;width:100%;border:0;border-radius:12px;padding:15px 16px;background:var(--green);color:var(--green-ink);
+    font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:21px;letter-spacing:.03em;text-align:center}
+  .btn.quiet{background:transparent;color:var(--ink);border:1.5px solid var(--line);font-weight:600}
+  .btn.gold{background:var(--gold);color:#1B1408}
+  .btn.danger{background:var(--dead-soft);color:var(--dead);border:0}
+  .btn:disabled{opacity:.4;cursor:default}
+  .btn.sm{padding:9px 12px;font-size:16px;border-radius:9px}
+  .btn.link{background:transparent;color:var(--muted);border:0;padding:6px;font-size:15px;font-weight:600;text-decoration:underline;text-underline-offset:3px}
+  .row{display:flex;gap:10px}
+  .row>.btn{flex:1}
+  .row.links{justify-content:space-between}
+  .row.links>.btn{flex:0 1 auto}
+  .xbtn{width:38px;height:38px;border-radius:50%;border:1.5px solid var(--line);background:transparent;color:var(--dead);font-size:24px;line-height:1;font-weight:600;flex:none}
+
+  .list{display:flex;flex-direction:column;border-top:1px solid var(--line)}
+  .item{display:flex;align-items:center;gap:12px;padding:12px 2px;border-bottom:1px solid var(--line)}
+  .item .name{font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:21px;flex:1;line-height:1.1}
+  .item.out .name{color:var(--muted);text-decoration:line-through}
+  .pill{font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:13px;letter-spacing:.06em;text-transform:uppercase;padding:4px 9px;border-radius:999px;white-space:nowrap}
+  .pill.ok{background:var(--green-soft);color:var(--green)}
+  .pill.pend{background:var(--gold-soft);color:var(--gold)}
+  .pill.team{background:transparent;border:1px solid var(--line);color:var(--muted)}
+  .parked{display:flex;align-items:center;gap:12px;background:var(--gold-soft);border-radius:12px;padding:10px 14px}
+  .parked .name{font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:21px;line-height:1.1}
+  .parked .sub{font-size:14px;color:var(--muted)}
+
+  .pick{display:flex;align-items:center;gap:12px;width:100%;text-align:left;background:transparent;border:0;border-bottom:1px solid var(--line);padding:12px 2px}
+  .pick .box{width:26px;height:26px;border-radius:7px;border:2px solid var(--line);flex:none;display:grid;place-items:center;font-weight:700;color:var(--green-ink)}
+  .pick.on .box{background:var(--green);border-color:var(--green)}
+  .pick .name{font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:22px;flex:1;line-height:1.1}
+  .pick.done{opacity:.45}
+
+  /* fields */
+  .fld{display:flex;flex-direction:column;gap:4px;flex:1}
+  .inp{font:inherit;font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:22px;padding:8px 10px;border:1.5px solid var(--line);border-radius:10px;background:var(--panel);color:var(--ink);width:100%}
+  .inp:disabled{opacity:.55;background:var(--bg)}
+  .check{border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:8px}
+  .check.good{background:var(--green-soft);color:var(--green)}
+  .check.bad{background:var(--dead-soft);color:var(--dead)}
+  .check.warn{background:var(--gold-soft);color:var(--gold)}
+  .check .t{font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:20px;line-height:1.1}
+
+  /* entry */
+  .who{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
+  .who .name{font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:32px;line-height:1}
+  .who .step{font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:17px;color:var(--muted);letter-spacing:.04em;text-align:right}
+  .pass2 .top{background:var(--gold);color:#1B1408}
+  .strip{display:grid;grid-template-columns:repeat(9,1fr);gap:4px}
+  .cell{border:0;background:transparent;padding:0;display:flex;flex-direction:column;align-items:center;gap:3px}
+  .cell .hn{font-family:"Barlow Condensed",sans-serif;font-size:19px;font-weight:700;color:var(--ink);line-height:1}
+  .cell .sc{width:100%;aspect-ratio:1/1.2;border:1.5px solid var(--line);border-radius:8px;display:grid;place-items:center;
+    font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:27px;font-variant-numeric:tabular-nums;background:var(--panel)}
+  .cell .par{font-family:"Barlow Condensed",sans-serif;font-size:14px;color:var(--muted)}
+  .cell.cur .sc{border-color:var(--green);border-width:2.5px}
+  .cell.armed .sc{border-color:var(--gold);border-width:2.5px;background:var(--gold-soft)}
+  .cell.under .sc{background:var(--green-soft);color:var(--green)}
+  .cell.none .sc{color:var(--muted);background:var(--bg)}
+  .cell .dot{display:flex;gap:3px;height:12px;align-items:center}
+  .cell .dot i{display:block;width:11px;height:11px;border-radius:50%;background:var(--gold)}
+  .now{display:flex;align-items:baseline;gap:12px;padding:4px 0}
+  .now .big{font-size:32px}
+  .now .rest{font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:20px;color:var(--muted)}
+  .fix{display:flex;align-items:center;gap:14px;background:var(--gold-soft);border-radius:12px;padding:8px 14px}
+  .fix .huge{font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:44px;line-height:1;color:var(--gold);font-variant-numeric:tabular-nums}
+  .fix .rest{font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:18px;color:var(--muted)}
+  .ask{display:grid;grid-template-columns:auto auto 1fr auto auto;align-items:center;gap:10px;background:var(--green-soft);border-radius:12px;padding:8px 12px}
+  .ask .huge{font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:44px;line-height:1;color:var(--green);font-variant-numeric:tabular-nums}
+  .ask .rest{font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:20px;color:var(--muted)}
+  .ask .btn{width:auto;padding:10px 18px;font-size:22px}
+  .ask .btn.no{background:var(--dead-soft);color:var(--dead)}
+  .sumline{display:flex;justify-content:space-between;align-items:baseline;padding:2px 0 0}
+  .sumline .big{font-size:28px}
+  .digits{display:flex;align-items:center;gap:10px}
+  .digits .box{min-width:92px;height:64px;border:2px solid var(--green);border-radius:12px;display:grid;place-items:center;
+    font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:38px;font-variant-numeric:tabular-nums}
+  .digits .box.empty{border-color:var(--line);color:var(--muted)}
+  .padwrap{flex:none;padding:8px 10px calc(8px + env(safe-area-inset-bottom));border-top:1px solid var(--line);background:var(--bg)}
+  .pad{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}
+  .key{height:48px;border-radius:12px;border:1px solid var(--key-edge);background:var(--key);color:var(--key-ink);
+    font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:28px;font-variant-numeric:tabular-nums;box-shadow:0 1px 0 var(--key-edge)}
+  .key:active{background:var(--key-down)}
+  .key.util{font-size:17px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;background:transparent;box-shadow:none}
+  .key.go{background:var(--green);color:var(--green-ink);border-color:var(--green)}
+  .key.none{font-size:20px;color:var(--muted)}
+  .photo{width:100%;border-radius:12px;border:1px solid var(--line);display:block;max-height:220px;object-fit:cover}
+  input[type=file]{display:none}
+  .drow{display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line)}
+  .drow .l{font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:19px;line-height:1.1}
+  .drow .l small{display:block;font-family:"Barlow",sans-serif;font-weight:400;font-size:13px;color:var(--muted)}
+  .choice{min-width:58px;height:46px;border-radius:10px;border:1.5px solid var(--line);background:var(--key);font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:24px}
+  .choice.on{background:var(--green);color:var(--green-ink);border-color:var(--green)}
+
+  /* tables and the board */
+  table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+  th{font-family:"Barlow Condensed",sans-serif;font-weight:600;letter-spacing:.06em;text-transform:uppercase;font-size:16px;color:var(--muted);text-align:left;padding:8px 4px;border-bottom:1px solid var(--line)}
+  th.r{text-align:right}
+  td{padding:8px 4px;border-bottom:1px solid var(--line);vertical-align:middle}
+  td.n{text-align:right;font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:18px}
+  td.hn{font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:18px;width:34px}
+  td.team{font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:20px}
+  td.topar{font-size:26px;color:var(--green)}
+  td.who{font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:18px;padding-left:22px}
+  tr.skin td{background:var(--green-soft)}
+  tr.skin td.who{color:var(--green);font-weight:600}
+  tr.skin td.hn{width:44px}
+  tr.skin td.n{font-size:18px}
+  table.tight td{padding:3px 4px}
+  table.tight td.team{font-size:18px}
+  table.tight td.topar{font-size:21px}
+  table.tight td.hn{font-size:15px;width:26px;color:var(--muted)}
+  table.tight td.n{font-size:15px}
+  .break{height:22px;margin:8px -16px 0;border-top:6px solid var(--green);border-bottom:1px solid var(--line);background:var(--bg)}
+  .secthead{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+  .secthead .pill{text-transform:none;letter-spacing:0;font-size:14px}
+  .tie{padding:10px 0;border-bottom:1px solid var(--line)}
+  .tie .t{font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:20px}
+  .tie .sub{font-size:15px;color:var(--muted)}
+  .stamp{font-size:13px;color:var(--muted);text-align:center;padding-top:16px}
+
+  /* TV: the board on a wide screen. No frame, two columns, bigger type, nothing to scroll. */
+  @media (min-width:900px){
+    .phone.tv{max-width:none;width:100%;height:100vh;height:100dvh;border:0;border-radius:0;box-shadow:none}
+    .phone.tv .top{padding:18px 40px 14px}
+    .phone.tv .eyebrow{font-size:20px}
+    .phone.tv .top h1{font-size:40px}
+    .phone.tv .logo{width:84px;height:84px;padding:5px}
+    .phone.tv .tophead{gap:22px}
+    .phone.tv .scroll{padding:18px 40px 24px;overflow:hidden}
+    .phone.tv .tvgrid{display:grid;grid-template-columns:3fr 2fr;gap:0 48px;align-items:start}
+    .phone.tv .col{display:flex;flex-direction:column;gap:12px;min-width:0}
+    .phone.tv .col+.col{border-left:6px solid var(--green);padding-left:40px}
+    .phone.tv .sect{font-size:32px}
+    .phone.tv th{font-size:20px}
+    .phone.tv table.tight td{padding:4px 6px}
+    .phone.tv table.tight td.team{font-size:26px}
+    .phone.tv table.tight td.topar{font-size:30px}
+    .phone.tv table.tight td.hn{font-size:20px;width:40px}
+    .phone.tv table.tight td.n{font-size:20px}
+    .phone.tv td.who{font-size:26px;padding-left:28px}
+    .phone.tv tr.skin td.hn{font-size:24px;width:60px}
+    .phone.tv tr.skin td.n{font-size:26px}
+    .phone.tv .pill{font-size:18px}
+    .phone.tv .secthead .pill{font-size:18px}
+  }
+  @media (prefers-reduced-motion:no-preference){ .key:active{transform:scale(.97)} }
+  .trial{background:#8a1c1c;color:#fff;font-weight:700;letter-spacing:.06em;text-align:center;padding:6px 8px;font-size:13px}
+</style>
+</head>
+<body>
+<div class="phone" id="app"></div>
+<script src="scoring.js"></script>
+<script>
+(function(){
+  "use strict";
+  var Sc = window.Scoring, PAR = Sc.PAR;
+  var NONE = -1;   /* a hole with no score, in a draft: entered, but not a number. RULES.md "A player who cannot finish" */
+
+  /* ---------- state: one object, saved on every change ---------- */
+  var LS = "mengacci_try_v1";   /* TRY build: its own key. The real app uses mengacci_v1; the two must never meet. */
+  var S = load();
+  function fresh(){
+    return { view:"setup", people:[], teams:[], withdrawn:[], setup:{name:"Mengacci $$",date:"",net:"",gross:""}, cutoff:null, locked:false,
+             cards:[], parked:[], draft:null, nextId:1, nextTeam:1, nextPerson:1 };
+  }
+  function load(){
+    try{ var raw=localStorage.getItem(LS); if(raw){ var s=JSON.parse(raw); if(s && s.cards) return s; } }catch(e){}
+    return fresh();
+  }
+  function save(){ try{ localStorage.setItem(LS, JSON.stringify(S)); }catch(e){} }
+
+  /* ---------- photos: kept in IndexedDB, keyed by card id ---------- */
+  var db=null;
+  function openDB(){
+    return new Promise(function(res){
+      if(db) return res(db);
+      if(!window.indexedDB) return res(null);
+      var r=indexedDB.open("mengacci_try",1);
+      r.onupgradeneeded=function(){ r.result.createObjectStore("photos"); };
+      r.onsuccess=function(){ db=r.result; res(db); };
+      r.onerror=function(){ res(null); };
+    });
+  }
+  function putPhoto(id, blob){ return openDB().then(function(d){ if(!d) return; return new Promise(function(res){ var t=d.transaction("photos","readwrite"); t.objectStore("photos").put(blob, String(id)); t.oncomplete=res; t.onerror=res; }); }); }
+  function getPhoto(id){ return openDB().then(function(d){ if(!d) return null; return new Promise(function(res){ var r=d.transaction("photos").objectStore("photos").get(String(id)); r.onsuccess=function(){ res(r.result||null); }; r.onerror=function(){ res(null); }; }); }); }
+  function allPhotos(){ return openDB().then(function(d){ if(!d) return []; return new Promise(function(res){ var out=[], r=d.transaction("photos").objectStore("photos").openCursor(); r.onsuccess=function(){ var c=r.result; if(c){ out.push({id:c.key, blob:c.value}); c.continue(); } else res(out); }; r.onerror=function(){ res(out); }; }); }); }
+
+  /* ---------- people, teams, the day's roster ---------- */
+  function fullName(p){ return (p.first+" "+p.last).trim(); }
+  function person(id){ for(var i=0;i<S.people.length;i++) if(S.people[i].id===id) return S.people[i]; return null; }
+  function personName(id){ var p=person(id); return p?fullName(p):"?"; }
+  function teamOf(id){ for(var i=0;i<S.teams.length;i++) if(S.teams[i].players.indexOf(id)>=0) return S.teams[i]; return null; }
+  function isWithdrawn(t){ return S.withdrawn.indexOf(t.id)>=0; }
+  /* ROSTER: everyone on a team today, with team index and whether the team is out */
+  var ROSTER=[];
+  function rebuildRoster(){ ROSTER=[]; S.teams.forEach(function(t,i){ var out=isWithdrawn(t); t.players.forEach(function(id){ var p=person(id); if(p) ROSTER.push({id:id,name:fullName(p),first:p.first,last:p.last,team:i+1,out:out}); }); }); }
+  function player(id){ for(var i=0;i<ROSTER.length;i++) if(ROSTER[i].id===id) return ROSTER[i]; return null; }
+  /* first name for the board; a last initial only when two players in the field share the first name */
+  function first(id){ var p=player(id); if(!p) return "?"; var clash=ROSTER.some(function(q){ return q.id!==p.id && q.first===p.first; }); return p.first+(clash&&p.last?" "+p.last.charAt(0)+".":""); }
+  function onACard(id){ return S.cards.some(function(c){ return c.players.indexOf(id)>=0; }) || S.parked.some(function(d){ return d.players.indexOf(id)>=0; }); }
+
+  function sum(a, from, to){ var t=0; for(var i=from;i<to;i++) if(a[i]!=null && a[i]!==NONE) t+=a[i]; return t; }
+  function filled(a, from, to){ var n=0; for(var i=from;i<to;i++) if(a[i]!=null) n++; return n; }
+  function hasNone(a, from, to){ for(var i=from;i<to;i++) if(a[i]===NONE) return true; return false; }
+  function shuffle(a){ a=a.slice(); for(var i=a.length-1;i>0;i--){ var j=Math.floor(Math.random()*(i+1)); var t=a[i]; a[i]=a[j]; a[j]=t; } return a; }
+  function now(){ var d=new Date(), h=d.getHours()%12||12, m=d.getMinutes(); return h+":"+(m<10?"0":"")+m; }
+  function stampDate(){ var d=new Date(); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
+  function toNull(a){ return a.map(function(v){ return v===NONE?null:v; }); }
+
+  /* ---------- DOM helpers ---------- */
+  function h(tag, attrs, kids){
+    var el=document.createElement(tag);
+    if(attrs) for(var k in attrs){
+      if(k==="class") el.className=attrs[k];
+      else if(k==="text") el.textContent=attrs[k];
+      else if(k==="html") el.innerHTML=attrs[k];
+      else if(k.indexOf("on")===0) el[k]=attrs[k];
+      else if(k==="disabled"){ if(attrs[k]) el.disabled=true; }
+      else if(k==="value") el.value=attrs[k];
+      else el.setAttribute(k, attrs[k]);
+    }
+    (kids||[]).forEach(function(c){ if(c==null) return; el.appendChild(typeof c==="string"?document.createTextNode(c):c); });
+    return el;
+  }
+  var app=document.getElementById("app"), lastKey=null;
+  function isTV(){ return S.view==="board" && (window.innerWidth||0)>=900; }
+  function paint(topEl, bodyKids, padEl, cls){
+    var key=S.view+"|"+(S.draft?S.draft.step+"|"+S.draft.pass+"|"+S.draft.pi+"|"+S.draft.nine:"");
+    var prev=app.querySelector(".scroll"), keep=(prev && key===lastKey)?prev.scrollTop:0;
+    app.innerHTML=""; app.className="phone"+(cls?" "+cls:"");
+    app.appendChild(h("div",{class:"trial",text:"TRY VERSION · one team at a time"}));
+    app.appendChild(topEl);
+    if(!S.draft && ["setup","roster","home","board","ties"].indexOf(S.view)>=0 && !isTV()){
+      var tabs=h("div",{class:"tabs"}); [["setup","Setup"],["roster","Roster"],["home","Teams"],["board","Board"]].forEach(function(t){
+        tabs.appendChild(h("button",{class:"tab"+(S.view===t[0]?" on":""),text:t[1],onclick:function(){ S.view=t[0]; render(); }})); }); app.appendChild(tabs); }
+    var sc=h("div",{class:"scroll"},[h("div",{class:"stack"},bodyKids)]);
+    app.appendChild(sc);
+    if(padEl) app.appendChild(padEl);
+    sc.scrollTop=keep; lastKey=key;
+  }
+  function top(eyebrow, title, right){
+    return h("div",{class:"top"},[
+      h("div",{class:"tophead"},[ h("img",{class:"logo",src:LOGO,alt:"Country Club of Waterbury"}), h("div",{},[h("div",{class:"eyebrow",text:eyebrow}), h("h1",{text:title})]) ]),
+      right||null
+    ]);
+  }
+
+  /* ---------- render ---------- */
+  function render(){
+    save(); rebuildRoster();
+    var d=S.draft;
+    if(d){
+      switch(d.step){
+        case "photo": return renderPhoto();
+        case "pick":  return renderPick();
+        case "hcp":   return renderHcp();
+        case "holes": return renderHoles();
+        case "verify":return renderVerify();
+        case "diff":  return renderDiff();
+        case "confirm":return renderConfirm();
+        default: d.step="holes"; d.armed=null; return renderHoles();
+      }
+    }
+    switch(S.view){
+      case "board": return renderBoard();
+      case "ties": return renderTies();
+      case "setup": return renderSetup();
+      case "roster": return renderRoster();
+      default: return renderHome();
+    }
+  }
+
+  /* ---------- SETUP ---------- */
+  function field(label, value, oninput, locked, opts){
+    opts=opts||{};
+    var inp=h("input",{class:"inp",value:value==null?"":String(value),disabled:locked,
+      oninput:function(e){ oninput(e&&e.target?e.target.value:inp.value); save(); }});
+    inp.setAttribute("type",opts.type||"text"); if(opts.type==="number") inp.setAttribute("inputmode","numeric");
+    return h("label",{class:"fld"},[ h("span",{class:"lbl",text:label}), inp ]);
+  }
+  function renderSetup(){
+    var locked=!!S.locked, kids=[], two=S.cutoff!=null;
+    kids.push(h("div",{class:locked?"check good":"check warn"},[ h("div",{class:"t",text:locked?"Locked at first tee":"Not locked yet"}) ]));
+
+    /* Start a new round: the fresh start. Asks first. Clears the round, keeps the roster. There is no past (DESIGN.md). */
+    kids.push(h("div",{class:"sect",text:"New round"}));
+    if(!S.confirmNew) kids.push(h("button",{class:"btn quiet sm",text:"Start a new round",onclick:function(){ S.confirmNew=true; render(); }}));
+    else kids.push(h("div",{class:"check bad"},[ h("div",{class:"t",text:"Start a new round? The board, every card and the teams are cleared. The roster stays. Back up this round first if you want its files."}),
+      h("div",{class:"row"},[ h("button",{class:"btn danger sm",text:"Yes, new round",onclick:function(){ S.cards=[]; S.parked=[]; S.draft=null; S.teams=[]; S.withdrawn=[]; S.pickA=null; S.locked=false; S.cutoff=null; S.setup={name:"Mengacci $$",date:"",net:"",gross:""}; S.confirmNew=false; render(); }}),
+        h("button",{class:"btn quiet sm",text:"Keep this round",onclick:function(){ S.confirmNew=false; render(); }}) ]) ]));
+
+    /* teams made so far; made on the Roster tab; × dissolves before the lock, withdraws after it */
+    kids.push(h("div",{class:"sect",text:"Teams · "+S.teams.length}));
+    var tl=h("div",{class:"list"});
+    S.teams.forEach(function(t, i){
+      var out=isWithdrawn(t), right=null;
+      if(!locked) right=h("button",{class:"xbtn",text:"×",title:"Dissolve this team; both go back to the pool",onclick:function(){ S.teams.splice(i,1); render(); }});
+      else if(out) right=h("button",{class:"btn link",text:"Restore",onclick:function(){ S.withdrawn=S.withdrawn.filter(function(k){return k!==t.id;}); render(); }});
+      else right=h("button",{class:"xbtn",text:"×",title:"Withdraw this team",onclick:function(){ S.confirmWd=(S.confirmWd===t.id?null:t.id); render(); }});
+      if(locked && S.confirmWd===t.id && !out) tl.appendChild(h("div",{class:"check bad"},[ h("div",{class:"t",text:"Withdraw "+t.players.map(personName).join(" & ")+"? They come off the board and out of both games."}),
+        h("div",{class:"row"},[ h("button",{class:"btn danger sm",text:"Withdraw",onclick:function(){ S.withdrawn.push(t.id); S.confirmWd=null; render(); }}), h("button",{class:"btn quiet sm",text:"Keep",onclick:function(){ S.confirmWd=null; render(); }}) ]) ]));
+      tl.appendChild(h("div",{class:"item"+(out?" out":"")},[ h("div",{class:"name",text:t.players.map(personName).join(" & ")+(out?" · withdrawn":"")}), right ]));
+    });
+    kids.push(tl);
+    if(!locked) kids.push(h("button",{class:"btn link",style:"text-align:left;padding:0",text:"Make teams on the Roster tab",onclick:function(){ S.view="roster"; render(); }}));
+
+    kids.push(h("div",{class:"sect",text:"Skins pots"}));
+    kids.push(h("div",{class:"row"},[
+      h("button",{class:"btn sm "+(two?"quiet":""),text:"One pot · net",disabled:locked,onclick:function(){ S.cutoff=null; render(); }}),
+      h("button",{class:"btn sm "+(two?"":"quiet"),text:"Two pots · gross and net",disabled:locked,onclick:function(){ if(S.cutoff==null) S.cutoff=12; render(); }})
+    ]));
+    if(two) kids.push(field("Gross pot is handicap … and under", S.cutoff, function(v){ var n=parseInt(v,10); if(!isNaN(n)) S.cutoff=n; }, locked, {type:"number"}));
+    kids.push(h("div",{class:"row"},[
+      field("Net pot $", S.setup.net, function(v){S.setup.net=v;}, locked, {type:"number"}),
+      two?field("Gross pot $", S.setup.gross, function(v){S.setup.gross=v;}, locked, {type:"number"}):null
+    ]));
+
+    kids.push(h("div",{class:"sect",text:"Event"}));
+    kids.push(field("Name", S.setup.name, function(v){S.setup.name=v;}, false));
+    kids.push(field("Date", S.setup.date, function(v){S.setup.date=v;}, false));
+
+    kids.push(h("button",{class:"btn "+(locked?"quiet":"gold"),style:"margin-top:8px",text:locked?"Unlock":"Lock for the round",onclick:function(){
+      if(!locked){ S.locked=true; S.confirmUnlock=false; render(); return; }
+      if(!S.confirmUnlock){ S.confirmUnlock=true; render(); return; }
+      S.locked=false; S.confirmUnlock=false; render(); }}));
+    if(locked && S.confirmUnlock) kids.push(h("div",{class:"check bad"},[ h("div",{class:"t",text:"Unlock while the round is on? Tap Unlock again to do it. The pots and cutoff are money; changing them mid-round moves money."}),
+      h("button",{class:"btn quiet sm",text:"Leave it locked",onclick:function(){ S.confirmUnlock=false; render(); }}) ]));
+
+    kids.push(h("div",{class:"stamp",id:"stamp",text:"version …"}));
+    paint(top(S.setup.name+" · CCW","Setup", null), kids, null);
+    showVersion();
+  }
+
+  /* ---------- ROSTER: the club's members; teams are made here ---------- */
+  function renderRoster(){
+    var locked=!!S.locked, kids=[];
+    if(locked) kids.push(h("div",{class:"check good"},[ h("div",{class:"t",text:"The round is on. The roster is set."}) ]));
+    var find=h("input",{class:"inp",value:S.rosterFilter||"",placeholder:"Find a name"}); find.setAttribute("type","search");
+    find.oninput=function(e){ S.rosterFilter=(e&&e.target?e.target.value:find.value); save(); pl.innerHTML=""; buildList(); };
+    kids.push(find);
+    if(!locked) kids.push(h("div",{class:"lbl",text:"Teams · "+S.teams.length+(S.pickA!=null?" · now tap "+personName(S.pickA)+"'s partner":" · tap two names to make a team")}));
+    var pl=h("div",{class:"list"});
+    function buildList(){
+      var q=(S.rosterFilter||"").toLowerCase();
+      S.people.slice().sort(function(a,b){ return (a.last+" "+a.first).localeCompare(b.last+" "+b.first); }).forEach(function(p){
+        if(q && fullName(p).toLowerCase().indexOf(q)<0) return;
+        var t=teamOf(p.id), on=S.pickA===p.id;
+        if(t || locked){
+          pl.appendChild(h("div",{class:"item"},[ h("div",{class:"name",text:fullName(p)}), t?h("span",{class:"pill team",text:"Team "+(S.teams.indexOf(t)+1)}):null ]));
+        } else if(S.confirmDel===p.id){
+          pl.appendChild(h("div",{class:"item"},[ h("div",{class:"name",text:"Delete "+fullName(p)+"?"}),
+            h("button",{class:"btn danger sm",style:"width:auto",text:"Delete",onclick:function(){ S.people=S.people.filter(function(q2){return q2.id!==p.id;}); S.confirmDel=null; render(); }}),
+            h("button",{class:"btn quiet sm",style:"width:auto",text:"Keep",onclick:function(){ S.confirmDel=null; render(); }}) ]));
+        } else {
+          pl.appendChild(h("div",{class:"item"},[
+            h("button",{class:"pick"+(on?" on":""),style:"border:0;padding:4px 0;flex:1",onclick:function(){
+              if(S.pickA==null){ S.pickA=p.id; }
+              else if(S.pickA===p.id){ S.pickA=null; }
+              else { S.teams.push({id:"T"+(S.nextTeam++), players:[S.pickA,p.id]}); S.pickA=null; }
+              render(); }},[ h("span",{class:"box",text:on?"✓":""}), h("span",{class:"name",text:fullName(p)}) ]),
+            h("button",{class:"xbtn",text:"×",title:"Delete this member",onclick:function(){ S.confirmDel=p.id; render(); }})
+          ]));
+        }
+      });
+      if(!S.people.length) pl.appendChild(h("div",{class:"item"},[ h("div",{class:"name muted",text:"No members yet"}) ]));
+    }
+    buildList();
+    kids.push(pl);
+    if(!locked){
+      if(!S.adding) kids.push(h("button",{class:"btn quiet sm",text:"Add a member",onclick:function(){ S.adding=true; render(); }}));
+      else {
+        var firstInp=h("input",{class:"inp",value:"",placeholder:"First"}), lastInp=h("input",{class:"inp",value:"",placeholder:"Last"});
+        [firstInp,lastInp].forEach(function(i){ i.setAttribute("type","text"); i.setAttribute("autocapitalize","words"); });
+        kids.push(h("div",{class:"row"},[ firstInp, lastInp ]));
+        kids.push(h("div",{class:"row"},[
+          h("button",{class:"btn sm",text:"Save",onclick:function(){
+            var f=(firstInp.value||"").trim(), l=(lastInp.value||"").trim(); if(!f&&!l) return;
+            S.people.push({id:S.nextPerson++,first:f,last:l}); S.adding=false; render(); }}),
+          h("button",{class:"btn quiet sm",text:"Cancel",onclick:function(){ S.adding=false; render(); }})
+        ]));
+        setTimeout(function(){ try{ firstInp.focus(); }catch(e){} },0);
+      }
+    }
+    paint(top("Mengacci $$ · CCW","Roster · "+S.people.length+(S.people.length===1?" person":" people"), null), kids, null);
+  }
+
+  /* ---------- HOME: Kyle's cards ---------- */
+  function renderHome(){
+    var conf=S.cards.filter(function(c){return c.status==="confirmed";}).length;
+    var pend=S.cards.length-conf;
+    var kids=[];
+    if(!S.teams.length) kids.push(h("div",{class:"check warn"},[ h("div",{class:"t",text:"No teams yet. Make them on the Roster tab."}) ]));
+    kids.push(h("button",{class:"btn",text:"Enter a team's scores",disabled:!S.teams.length,onclick:function(){
+      S.draft={id:S.nextId++,step:"photo",players:[],hcp1:{},hcp2:{},s1:{},s2:{},tot:{},notes:[],pass:1,pi:0,nine:0,armed:null,buf:"",order:[],res:{},photo:false};
+      render();
+    }}));
+    kids.push(h("div",{class:"row"},[
+      h("span",{class:"note",text:(S.cutoff==null?"One skins pot, net":"Two pots · gross hcp "+S.cutoff+" and under")+(S.locked?" · locked":" · not locked")})
+    ]));
+    kids.push(h("button",{class:"btn link",style:"text-align:left;padding:0",text:"How ties were decided",onclick:function(){ S.view="ties"; render(); }}));
+    S.parked.forEach(function(p, idx){
+      var L=draftLabel(p);
+      kids.push(h("div",{class:"parked"},[
+        h("div",{style:"flex:1"},[ h("div",{class:"lbl",text:"Parked · "+p.parkedAt}), h("div",{class:"name",text:L.names}), h("div",{class:"sub",text:L.where}) ]),
+        h("button",{class:"btn gold sm",style:"width:auto",text:"Resume",onclick:function(){ S.parked.splice(idx,1); S.draft=p; render(); }})
+      ]));
+    });
+    kids.push(h("div",{class:"lbl",text:"Teams in · "+conf+" verified · "+pend+" provisional"}));
+    var list=h("div",{class:"list"});
+    S.cards.slice().reverse().forEach(function(c){
+      var names=c.players.map(first).join(" & ");
+      var right;
+      if(c.status==="confirmed") right=h("span",{class:"pill ok",text:"Verified"});
+      else right=h("button",{class:"btn gold sm",style:"width:auto;padding:8px 10px;font-size:15px",text:"Check now",onclick:function(){ checkLater(c); }});
+      list.appendChild(h("div",{class:"item"},[ h("div",{style:"flex:1"},[h("div",{class:"name",text:names}), h("div",{class:"note",text:"how: "+(c.method||"?")})]), right ]));
+    });
+    kids.push(list);
+    kids.push(h("div",{class:"sect",text:"Files"}));
+    kids.push(h("button",{class:"btn quiet sm",text:"Back up this round",onclick:backupRound}));
+    if(S.backupNote) kids.push(h("div",{class:"note",text:S.backupNote}));
+    paint(top((S.setup.name||"Mengacci $")+" · CCW","Team scores", h("div",{class:"right",text:S.setup.date||""})), kids, null);
+  }
+  function draftLabel(d){
+    var names=d.players.length?d.players.map(first).join(", "):"no players yet";
+    var where= d.step==="photo"?"photo" : d.step==="pick"?"picking players" :
+               (d.step==="hcp"||d.step==="holes")?(d.pass===2?"second read, ":"")+first(d.order[d.pi])+" · "+(d.step==="hcp"?"handicap":(d.nine===0?"front 9":"back 9")) :
+               d.step==="verify"?"ready to verify" : d.step==="diff"?"settling differences" : "ready to confirm";
+    return {names:names, where:where};
+  }
+  /* a provisional card comes back for its second read */
+  function checkLater(c){
+    var d={id:c.id,step:"verify",players:c.players.slice(),hcp1:{},hcp2:{},s1:{},s2:{},tot:{},notes:(c.notes||[]).slice(),pass:1,pi:0,nine:0,armed:null,buf:"",order:c.players.slice(),res:{},photo:!!c.photo,recheck:true};
+    c.players.forEach(function(pid){ d.hcp1[pid]=c.hcp[pid]; d.s1[pid]=c.scores[pid].map(function(v){ return v==null?NONE:v; }); });
+    S.cards=S.cards.filter(function(x){ return x.id!==c.id; });
+    S.draft=d; render();
+  }
+
+  /* ---------- the round's files: JSON plus photos, to the share sheet or a download ---------- */
+  function roundJSON(){
+    return {
+      format:"mengacci-round-v1", written:new Date().toISOString(), event:S.setup, cutoff:S.cutoff, locked:S.locked,
+      people:S.people, teams:S.teams, withdrawn:S.withdrawn,
+      cards:S.cards.map(function(c){ return {id:c.id,status:c.status,method:c.method,time:c.time,players:c.players,hcp:c.hcp,scores:c.scores,notes:c.notes,photo:!!c.photo}; })
+    };
+  }
+  function backupRound(){
+    var name="mengacci_"+stampDate()+"_"+(S.setup.name||"round").replace(/[^A-Za-z0-9]+/g,"-")+".json";
+    var json=new Blob([JSON.stringify(roundJSON(),null,1)],{type:"application/json"});
+    allPhotos().then(function(ph){
+      var files=[new File([json],name,{type:"application/json"})];
+      ph.forEach(function(p){ files.push(new File([p.blob],"mengacci_"+stampDate()+"_card"+p.id+".jpg",{type:p.blob.type||"image/jpeg"})); });
+      if(navigator.share && navigator.canShare && navigator.canShare({files:files})){
+        navigator.share({files:files,title:"Mengacci round"}).then(function(){ S.backupNote="Shared "+files.length+" file"+(files.length>1?"s":"")+" at "+now()+"."; render(); })
+          .catch(function(){ S.backupNote="Share cancelled."; render(); });
+      } else {
+        var a=document.createElement("a"); a.href=URL.createObjectURL(json); a.download=name; document.body.appendChild(a); a.click(); a.remove();
+        S.backupNote="Downloaded "+name+(ph.length?" · photos stay on the phone; share needs a phone browser":"")+"."; render();
+      }
+    });
+  }
+
+  /* ---------- PHOTO ---------- */
+  var photoURL=null;
+  function renderPhoto(){
+    var d=S.draft, kids=[];
+    kids.push(h("div",{class:"big",text:"Photograph the card"}));
+    if(photoURL) kids.push(h("img",{class:"photo",src:photoURL,alt:"Scorecard photo"}));
+    var inp=h("input",{type:"file",accept:"image/*",capture:"environment"});
+    inp.onchange=function(){ if(inp.files && inp.files[0]){ var f=inp.files[0]; try{ photoURL=URL.createObjectURL(f); }catch(e){} d.photo=true; putPhoto(d.id, f).then(render); } };
+    kids.push(inp);
+    kids.push(h("button",{class:"btn",text:photoURL||d.photo?"Retake":"Take photo",onclick:function(){inp.click();}}));
+    kids.push(h("button",{class:"btn quiet",text:photoURL||d.photo?"Continue":"Skip the photo",onclick:function(){S.draft.step="pick";render();}}));
+    kids.push(footer());
+    paint(top("New card","Photo"), kids, null);
+  }
+  function footer(){
+    var d=S.draft;
+    if(d.confirmCancel) return h("div",{class:"check bad"},[
+      h("div",{class:"t",text:"Throw away this card? Everything typed for it is lost."}),
+      h("div",{class:"row"},[
+        h("button",{class:"btn danger sm",text:"Throw away",onclick:function(){ S.draft=null; photoURL=null; S.view="home"; render(); }}),
+        h("button",{class:"btn quiet sm",text:"Keep going",onclick:function(){ d.confirmCancel=false; render(); }})
+      ])
+    ]);
+    return h("div",{class:"row links"},[
+      h("button",{class:"btn link",text:"Park this card",onclick:parkCard}),
+      h("button",{class:"btn link",text:"Cancel this card",onclick:function(){ d.confirmCancel=true; render(); }})
+    ]);
+  }
+  function parkCard(){ var d=S.draft; d.confirmCancel=false; d.parkedAt=now(); S.parked.push(d); S.draft=null; photoURL=null; S.view="home"; render(); }
+
+  /* ---------- PICK ---------- */
+  function renderPick(){
+    var d=S.draft, kids=[], shown=0;
+    var list=h("div",{class:"list"});
+    S.teams.forEach(function(t,i){
+      if(isWithdrawn(t)) return;
+      shown++;
+      var used=t.players.some(onACard);
+      list.appendChild(h("button",{class:"pick"+(used?" done":""),onclick:function(){
+        d.players=t.players.slice(); d.order=d.players.slice(); d.pi=0; d.pass=1; d.step="hcp"; d.buf=""; render();
+      }},[ h("span",{class:"name",text:t.players.map(personName).join(" & ")}), h("span",{class:"pill team",text:"Team "+(i+1)}), used?h("span",{class:"pill ok",text:"In"}):null ]));
+    });
+    kids.push(list);
+    if(!shown) kids.push(h("div",{class:"check warn"},[ h("div",{class:"t",text:"No teams to enter. Make them on the Roster tab."}) ]));
+    kids.push(h("button",{class:"btn link",text:"Back to the photo",onclick:function(){d.step="photo";render();}}));
+    kids.push(footer());
+    paint(top("New card","Which team?"), kids, null);
+  }
+
+  /* ---------- entry helpers ---------- */
+  function cur(){ var d=S.draft; return d.order[d.pi]; }
+  function scoresFor(pid){ var d=S.draft, bag=d.pass===1?d.s1:d.s2; if(!bag[pid]) bag[pid]=new Array(18).fill(null); return bag[pid]; }
+  function passLabel(){ var d=S.draft; return (d.pass===1?"First entry":"Second read")+" · player "+(d.pi+1)+" of "+d.order.length; }
+  function whoBlock(stepText){ var p=player(cur()); return h("div",{class:"who"},[ h("div",{class:"name",text:p?p.name:"?"}), h("div",{class:"step",html:stepText+"<br>"+passLabel()}) ]); }
+  function digitPad(onDigit, onBack, onOK, okText){
+    var pad=h("div",{class:"pad"});
+    [1,2,3,4,5,6,7,8,9].forEach(function(n){ pad.appendChild(h("button",{class:"key",text:String(n),onclick:function(){onDigit(n);}})); });
+    pad.appendChild(h("button",{class:"key util",text:"Back",onclick:onBack}));
+    pad.appendChild(h("button",{class:"key",text:"0",onclick:function(){onDigit(0);}}));
+    pad.appendChild(h("button",{class:"key go",text:okText||"OK",onclick:onOK}));
+    return h("div",{class:"padwrap"},[pad]);
+  }
+  function scorePad(){
+    var pad=h("div",{class:"pad"});
+    [1,2,3,4,5,6,7,8,9,10,11,12].forEach(function(n){ pad.appendChild(h("button",{class:"key",text:String(n),onclick:function(){pressScore(n);}})); });
+    pad.appendChild(h("button",{class:"key util",text:"Clear 9",onclick:function(){ var d=S.draft, a=scoresFor(cur()), o=d.nine*9; for(var i=o;i<o+9;i++) a[i]=null; d.armed=null; d.ask=null; render(); }}));
+    pad.appendChild(h("button",{class:"key none",text:"no score",title:"He did not play this hole",onclick:function(){pressScore(NONE);}}));
+    pad.appendChild(h("button",{class:"key util",text:"Back",onclick:backspaceScore}));
+    return h("div",{class:"padwrap"},[pad]);
+  }
+
+  /* ---------- HCP ---------- */
+  function renderHcp(){
+    var d=S.draft, kids=[];
+    kids.push(whoBlock("Handicap"));
+    var oldHcp=(d.pass===1?d.hcp1:d.hcp2)[cur()];
+    kids.push(h("div",{class:"digits"},[ h("div",{class:"box"+(d.buf?"":" empty"),text:d.buf||(oldHcp!=null?String(oldHcp):"–")}), h("div",{class:"note",text:"course handicap, from the card"}) ]));
+    kids.push(footer());
+    paint(top(d.pass===1?"New card":"Second read","Handicap"), kids,
+      digitPad(function(n){ if(d.buf.length<2){ d.buf+=String(n); render(); } },
+               function(){ d.buf=d.buf.slice(0,-1); render(); },
+               function(){ var v; if(d.buf===""){ if(oldHcp==null) return; v=oldHcp; } else v=parseInt(d.buf,10);
+                 if(d.pass===1) d.hcp1[cur()]=v; else d.hcp2[cur()]=v;
+                 d.buf=""; d.nine=0; d.armed=null; d.step="holes"; render(); }), d.pass===2?"pass2":"");
+  }
+
+  /* ---------- HOLES ---------- */
+  function strip(pid, a, nine){
+    var d=S.draft, o=nine*9, st=h("div",{class:"strip"});
+    var hc=(d.pass===1?d.hcp1:d.hcp2)[pid]||0;
+    var next=-1; for(var i=o;i<o+9;i++) if(a[i]==null){ next=i; break; }
+    for(var i=o;i<o+9;i++){
+      (function(i){
+        var v=a[i], cls="cell";
+        if(d.armed===i) cls+=" armed"; else if(d.armed==null && i===next) cls+=" cur";
+        if(v===NONE) cls+=" none"; else if(v!=null && v<PAR[i]) cls+=" under";
+        var dd=Sc.dots(hc,i);
+        st.appendChild(h("button",{class:cls,onclick:function(){ d.armed=(d.armed===i?null:i); d.ask=null; render(); }},[
+          h("span",{class:"hn",text:String(i+1)}),
+          h("span",{class:"sc",text:v==null?"":(v===NONE?"–":String(v))}),
+          h("span",{class:"par",text:"par "+PAR[i]}),
+          h("span",{class:"dot"},(function(){ var ds=[]; for(var q=0;q<dd;q++) ds.push(h("i")); return ds; })())
+        ]));
+      })(i);
+    }
+    return st;
+  }
+  function renderHoles(){
+    var d=S.draft, pid=cur(), a=scoresFor(pid), o=d.nine*9, kids=[];
+    kids.push(whoBlock(d.nine===0?"Front 9":"Back 9"));
+    var target=d.armed!=null?d.armed:-1;
+    if(target<0) for(var k=o;k<o+9;k++) if(a[k]==null){ target=k; break; }
+    var hc=(d.pass===1?d.hcp1:d.hcp2)[pid]||0;
+    if(target>=0){
+      var dd=Sc.dots(hc,target);
+      kids.push(h("div",{class:"now"},[ h("span",{class:"big",text:"Hole "+(target+1)}), h("span",{class:"rest",text:"par "+PAR[target]+(dd?" · "+dd+" stroke"+(dd>1?"s":""):"")}) ]));
+      if(d.armed!=null) kids.push(h("div",{class:"fix"},[ h("span",{class:"lbl",text:"Fixing · now"}), h("span",{class:"huge",text:a[target]==null?"–":(a[target]===NONE?"none":String(a[target]))}), h("span",{class:"rest",text:"tap the new score"}) ]));
+    }
+    var s=sum(a,o,o+9), done=filled(a,o,o+9)===9, blanks=hasNone(a,o,o+9);
+    if(done && d.pass===1 && d.armed==null){
+      if(blanks){
+        /* a nine with a no-score hole: the card's total cannot match, so no yes/no. RULES.md "A player who cannot finish" */
+        kids.push(h("div",{class:"ask"},[ h("span",{class:"lbl",text:"Adds to"}), h("span",{class:"huge",text:String(s)}), h("span",{class:"rest",text:"holes not played left out"}), h("button",{class:"btn yes",text:"Next",onclick:function(){ acceptTotal(null); }}) ]));
+      } else {
+        kids.push(h("div",{class:"ask"},[
+          h("span",{class:"lbl",text:"Card says"}), h("span",{class:"huge",text:String(s)}), h("span",{class:"rest",text:"for the "+(d.nine===0?"front":"back")+"?"}),
+          h("button",{class:"btn yes",text:"Yes",onclick:function(){ d.ask=null; acceptTotal(s); }}),
+          h("button",{class:"btn no",text:"No",onclick:function(){ d.ask="no"; render(); }})
+        ]));
+        if(d.ask==="no"){
+          kids.push(h("div",{class:"check bad"},[ h("div",{class:"t",text:"Tap the wrong hole and retype it."}) ]));
+          kids.push(h("button",{class:"btn quiet sm",text:"Player added wrong · keep the holes",onclick:function(){
+            d.notes.push(first(pid)+"'s "+(d.nine===0?"front":"back")+" total on the card disagrees with the holes, which add to "+s);
+            d.ask=null; acceptTotal(s); }}));
+        }
+      }
+    }
+    else if(done && d.pass===2 && d.armed==null){
+      kids.push(h("div",{class:"ask"},[ h("span",{class:"lbl",text:"Adds to"}), h("span",{class:"huge",text:String(s)}), h("span",{class:"rest",text:""}), h("button",{class:"btn yes",text:"Next",onclick:afterNine}) ]));
+    }
+    kids.push(strip(pid,a,d.nine));
+    if(!done) kids.push(h("div",{class:"sumline"},[ h("span",{class:"lbl",text:(d.nine===0?"Front":"Back")+" so far · "+filled(a,o,o+9)+" of 9"}), h("span",{class:"big",text:String(s)}) ]));
+    kids.push(h("button",{class:"btn link",text:"Back to handicap",onclick:function(){ d.step="hcp"; d.buf=""; render(); }}));
+    kids.push(footer());
+    paint(top(d.pass===1?"New card":"Second read · first entry hidden",(d.nine===0?"Front":"Back")+" 9"), kids, scorePad(), d.pass===2?"pass2":"");
+  }
+  function pressScore(n){
+    var d=S.draft, a=scoresFor(cur()), o=d.nine*9;
+    d.ask=null;
+    if(d.armed!=null){ a[d.armed]=n; d.armed=null; render(); return; }
+    var i=-1; for(var k=o;k<o+9;k++) if(a[k]==null){ i=k; break; } if(i<0) return; a[i]=n;
+    render();
+  }
+  function backspaceScore(){
+    var d=S.draft, a=scoresFor(cur()), o=d.nine*9;
+    d.ask=null;
+    if(d.armed!=null){ a[d.armed]=null; d.armed=null; render(); return; }
+    for(var i=o+8;i>=o;i--) if(a[i]!=null){ a[i]=null; break; }
+    render();
+  }
+  function acceptTotal(v){ var d=S.draft, pid=cur(); if(!d.tot[pid]) d.tot[pid]={}; d.tot[pid][d.nine===0?"f":"b"]=v; d.buf=""; afterNine(); }
+  function afterNine(){
+    var d=S.draft;
+    if(d.nine===0){ d.nine=1; d.armed=null; d.step="holes"; render(); return; }
+    d.pi++; d.nine=0; d.armed=null; d.buf="";
+    if(d.pi<d.order.length){ d.step="hcp"; render(); return; }
+    if(d.pass===1){ d.step="verify"; render(); return; }
+    d.step="diff"; d.res={}; render();
+  }
+
+  /* ---------- VERIFY ---------- */
+  function renderVerify(){
+    var d=S.draft, kids=[];
+    kids.push(h("div",{class:"big",text:"How do you want it checked?"}));
+    var list=h("div",{class:"list"});
+    d.players.forEach(function(pid){ var a=d.s1[pid];
+      list.appendChild(h("div",{class:"item"},[ h("div",{class:"name",text:personName(pid)}), h("div",{class:"note",text:"hcp "+d.hcp1[pid]+" · "+sum(a,0,9)+" + "+sum(a,9,18)+" = "+sum(a,0,18)+(hasNone(a,0,18)?" · holes not played":"")}) ])); });
+    kids.push(list);
+    kids.push(h("button",{class:"btn gold",text:"I type it again · random order",onclick:function(){
+      d.order=shuffle(d.players); d.pi=0; d.pass=2; d.nine=0; d.armed=null; d.buf=""; d.step="hcp"; render(); }}));
+    /* ScannerBot reads the photo of the whole card and finds these two typed names among the four.
+       Nothing is wired to him yet, so this parks the team as provisional, waiting. The money never waits on him. */
+    kids.push(h("button",{class:"btn",text:"ScannerBot checks the photo",disabled:!d.photo,
+      onclick:function(){ saveCard("provisional","Waiting for ScannerBot", d.s1, d.hcp1); }}));
+    if(!d.photo) kids.push(h("div",{class:"note",text:"ScannerBot needs a photo of the card. Go back and take one."}));
+    if(!d.recheck) kids.push(h("button",{class:"btn quiet",text:"Save provisional · check later",onclick:function(){ saveCard("provisional","Provisional", d.s1, d.hcp1); }}));
+    if(!d.skipAsk) kids.push(h("button",{class:"btn link",text:"Skip the check · counts as verified",onclick:function(){ d.skipAsk=true; render(); }}));
+    else kids.push(h("div",{class:"check bad"},[
+      h("div",{class:"t",text:"Nothing will check this team. It goes on the board as verified and the money counts it."}),
+      h("div",{class:"row"},[
+        h("button",{class:"btn danger sm",text:"Skip it · on me",onclick:function(){ saveCard("confirmed","Skipped by Kyle", d.s1, d.hcp1); }}),
+        h("button",{class:"btn quiet sm",text:"No, check it",onclick:function(){ d.skipAsk=false; render(); }})
+      ])
+    ]));
+    kids.push(footer());
+    paint(top("New card","Verify"), kids, null);
+  }
+
+  /* ---------- DIFF ---------- */
+  function diffs(){
+    var d=S.draft, out=[];
+    d.players.forEach(function(pid){
+      if(d.hcp1[pid]!==d.hcp2[pid]) out.push({key:pid+":h",pid:pid,label:"Handicap",a:d.hcp1[pid],b:d.hcp2[pid]});
+      for(var i=0;i<18;i++) if(d.s1[pid][i]!==d.s2[pid][i]) out.push({key:pid+":"+i,pid:pid,label:"Hole "+(i+1)+" · par "+PAR[i],a:d.s1[pid][i],b:d.s2[pid][i],i:i});
+    });
+    return out;
+  }
+  function show(v){ return v===NONE?"none":String(v); }
+  function renderDiff(){
+    var d=S.draft, list=diffs(), kids=[];
+    if(!list.length){
+      kids.push(h("div",{class:"check good"},[ h("div",{class:"t",text:"Both passes agree, every hole, every handicap."}) ]));
+      kids.push(h("button",{class:"btn",text:"Continue",onclick:function(){ d.step="confirm"; render(); }}));
+    }else{
+      kids.push(h("div",{class:"big",text:list.length+" difference"+(list.length>1?"s":"")}));
+      kids.push(h("div",{class:"note",text:"Look at the paper. First pass on the left, second on the right."}));
+      var box=h("div");
+      list.forEach(function(x){
+        var pick=d.res[x.key];
+        box.appendChild(h("div",{class:"drow"},[
+          h("div",{class:"l"},[first(x.pid)+" ", h("small",{text:x.label})]),
+          h("button",{class:"choice"+(pick==="a"?" on":""),text:show(x.a),onclick:function(){d.res[x.key]="a";render();}}),
+          h("button",{class:"choice"+(pick==="b"?" on":""),text:show(x.b),onclick:function(){d.res[x.key]="b";render();}})
+        ]));
+      });
+      kids.push(box);
+      var done=list.every(function(x){return d.res[x.key];});
+      kids.push(h("button",{class:"btn",text:done?"Continue":"Settle every line first",disabled:!done,onclick:function(){ d.step="confirm"; render(); }}));
+    }
+    kids.push(footer());
+    paint(top("Second read","Differences"), kids, null, "pass2");
+  }
+  function resolved(){
+    var d=S.draft, hcp={}, sc={};
+    d.players.forEach(function(pid){ hcp[pid]=d.hcp1[pid]; sc[pid]=d.s1[pid].slice(); });
+    diffs().forEach(function(x){ var v=d.res[x.key]==="b"?x.b:x.a; if(x.label==="Handicap") hcp[x.pid]=v; else sc[x.pid][x.i]=v; });
+    return {hcp:hcp, sc:sc};
+  }
+
+  /* ---------- CONFIRM ---------- */
+  function renderConfirm(){
+    var d=S.draft, r=resolved(), n=diffs().length, kids=[];
+    var t=h("table",{},[ h("tr",{},[h("th",{text:"Player"}),h("th",{text:"Hcp",class:"r"}),h("th",{text:"Out",class:"r"}),h("th",{text:"In",class:"r"}),h("th",{text:"Gross",class:"r"}),h("th",{text:"Net",class:"r"})]) ]);
+    d.players.forEach(function(pid){ var a=r.sc[pid], hc=r.hcp[pid], g=sum(a,0,18);
+      t.appendChild(h("tr",{},[ h("td",{text:personName(pid)}), h("td",{class:"n",text:String(hc)}),
+        h("td",{class:"n",text:String(sum(a,0,9))}), h("td",{class:"n",text:String(sum(a,9,18))}),
+        h("td",{class:"n",text:String(g)+(hasNone(a,0,18)?"*":"")}), h("td",{class:"n",text:String(g-hc)}) ])); });
+    kids.push(t);
+    kids.push(h("div",{class:"check good"},[ h("div",{class:"t",text:"Second read · "+(n?n+" difference"+(n>1?"s":"")+" settled against the paper":"no differences")}),
+      d.notes.length?h("div",{text:d.notes.join(". ")}):null ]));
+    kids.push(h("button",{class:"btn",text:"Confirm card · verified",onclick:function(){ saveCard("confirmed","Second read", r.sc, r.hcp); }}));
+    kids.push(h("button",{class:"btn link",text:"Back to differences",onclick:function(){ d.step="diff"; render(); }}));
+    paint(top("Second read","Confirm"), kids, null, "pass2");
+  }
+  function saveCard(status, method, sc, hcp){
+    var d=S.draft, card={id:d.id, status:status, method:method, time:now(), players:d.players.slice(), notes:d.notes.slice(), hcp:{}, scores:{}, photo:!!d.photo};
+    d.players.forEach(function(pid){ card.hcp[pid]=hcp[pid]; card.scores[pid]=toNull(sc[pid]); });
+    S.cards.push(card); S.draft=null; photoURL=null; S.view=(status==="confirmed"?"board":"home"); render();
+  }
+
+  /* ---------- BOARD ---------- */
+  function verifiedById(){
+    var by={};
+    S.cards.forEach(function(c){ if(c.status!=="confirmed") return; c.players.forEach(function(pid){ var p=player(pid); if(p && !p.out) by[pid]={id:pid,hcp:c.hcp[pid],scores:c.scores[pid]}; }); });
+    return by;
+  }
+  function renderBoard(){
+    var by=verifiedById(), ids=Object.keys(by).map(Number);
+    var pend=S.cards.filter(function(c){return c.status!=="confirmed";}).length;
+    var st=Sc.standings(S.teams, by, S.withdrawn);
+    var teamsTotal=S.teams.length-st.withdrawn.length, teamsIn=st.done.length;
+    var status=Sc.boardStatus(teamsTotal, teamsIn, pend);
+    var eyebrow= status==="none" ? "No teams yet" : status==="final" ? "FINAL · all "+teamsTotal+" teams reported" : "TENTATIVE · "+teamsIn+" of "+teamsTotal+" teams reported";
+    var kids=[];
+
+    /* teams: best ball first, to par */
+    var tt=h("table",{class:"tight"},[h("tr",{},[h("th",{text:""}),h("th",{text:"Team"}),h("th",{text:"To par",class:"r"}),h("th",{text:"Net",class:"r"})])]);
+    st.done.forEach(function(x,idx){
+      tt.appendChild(h("tr",{},[h("td",{class:"hn",text:String(idx+1)}),h("td",{class:"team",text:x.team.players.map(first).join(" & ")}),h("td",{class:"n topar",text:Sc.toPar(x.total)}),h("td",{class:"n muted",text:String(x.total)})]));
+    });
+    st.waiting.forEach(function(t){ tt.appendChild(h("tr",{},[h("td",{class:"hn",text:""}),h("td",{class:"team muted",text:t.players.map(first).join(" & ")}),h("td",{colspan:"2"},[h("span",{class:"pill team",text:"Scores not in yet"})])])); });
+    var teamsHead=h("div",{class:"sect",text:"Tournament · 2-man best ball net"});
+
+    /* skins per pot */
+    var players=ids.map(function(pid){ return by[pid]; });
+    var pots=Sc.pots(players, S.cutoff), blocks=[];
+    function potTable(members, useGross, label){
+      var t=h("table",{},[h("tr",{},[h("th",{text:"Hole"}),h("th",{text:"Skin"}),h("th",{text:useGross?"Gross":"Net",class:"r"})])]);
+      var rows=Sc.skins(members, useGross), n=0;
+      rows.forEach(function(r){ if(r.kind!=="skin") return; n++;
+        t.appendChild(h("tr",{class:"skin"},[h("td",{class:"hn",text:String(r.hole)}),h("td",{class:"who",text:player(r.holder)?player(r.holder).name:"?"}),h("td",{class:"n",text:String(r.score)})])); });
+      if(!n) t.appendChild(h("tr",{},[h("td",{colspan:"3",class:"muted",text:"No skins yet"})]));
+      var head=h("div",{class:"sect secthead"},[ h("span",{text:label}) ]);
+      if(status!=="final" && teamsTotal) head.appendChild(h("span",{class:"pill pend",text:"Not all scores in yet"}));
+      return [head, t];
+    }
+    if(S.cutoff==null) blocks=potTable(pots.net,false,"Net skins");
+    else blocks=potTable(pots.gross,true,"Gross skins · hcp "+S.cutoff+" and under").concat(potTable(pots.net,false,"Net skins · hcp over "+S.cutoff));
+
+    if(isTV()){
+      kids=[h("div",{class:"tvgrid"},[ h("div",{class:"col"},[teamsHead, tt]), h("div",{class:"col"},blocks) ])];
+    } else {
+      kids.push(teamsHead); kids.push(tt); kids.push(h("div",{class:"break"})); blocks.forEach(function(b){ kids.push(b); });
+    }
+    paint(top(eyebrow,"Live board", isTV()?h("button",{class:"topbtn btn quiet sm",style:"width:auto",text:"Teams",onclick:function(){S.view="home";render();}}):null), kids, null, isTV()?"tv":"");
+  }
+
+  /* ---------- TIES ---------- */
+  function renderTies(){
+    var st=Sc.standings(S.teams, verifiedById(), S.withdrawn), list=Sc.ties(st.done), kids=[];
+    kids.push(h("div",{class:"note",text:"Teams on the same net total, and the match-of-cards step that put one above the other: back 9, then last 6, then last 3, then the 18th."}));
+    list.forEach(function(x){
+      kids.push(h("div",{class:"tie"},[
+        h("div",{class:"t",text:x.above.players.map(first).join(" & ")+" above "+x.below.players.map(first).join(" & ")}),
+        h("div",{class:"sub",text:"both net "+x.total+" · "+(x.by.how==="tied"?"still tied after the 18th":x.by.how+": "+x.by.av+" to "+x.by.bv)})
+      ]));
+    });
+    if(!list.length) kids.push(h("div",{class:"note",text:"No ties among the teams that are in."}));
+    paint(top("Mengacci $$ · CCW","How ties were decided", null), kids, null);
+  }
+
+  /* ---------- version stamp: what this phone is actually running ---------- */
+  var versionText="not installed";
+  function showVersion(){ var el=document.getElementById("stamp"); if(el) el.textContent="version "+versionText; }
+  if(typeof navigator!=="undefined" && "serviceWorker" in navigator){
+    navigator.serviceWorker.addEventListener("message", function(e){ if(e.data && e.data.version){ versionText=String(e.data.version).replace(/^mengacci-/,""); showVersion(); } });
+    navigator.serviceWorker.register("./sw.js").then(function(){ var c=navigator.serviceWorker.controller; if(c) c.postMessage("version"); else versionText="first visit, installing"; showVersion(); }).catch(function(){ versionText="install failed"; showVersion(); });
+  }
+
+  /* the address picks the screen: #board for the TV, #cards, #setup, #roster */
+  (function(){ var hsh=(typeof location!=="undefined"&&location.hash)||""; if(hsh==="#board") S.view="board"; else if(hsh==="#cards") S.view="home"; else if(hsh==="#setup") S.view="setup"; else if(hsh==="#roster") S.view="roster"; })();
+  if(window.addEventListener) window.addEventListener("hashchange", function(){ var hsh=location.hash||""; var v={"#board":"board","#cards":"home","#setup":"setup","#roster":"roster"}[hsh]; if(v){ S.view=v; render(); } });
+  var rt=null; if(window.addEventListener) window.addEventListener("resize", function(){ clearTimeout(rt); rt=setTimeout(function(){ if(S.view==="board") render(); },150); });
+
+  /* the CCW crest, embedded so the page needs no files */
+  var LOGO="data:image/png;base64,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";
+  render();
+})();
+</script>
+</body>
+</html>
