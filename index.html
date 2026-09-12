@@ -375,6 +375,19 @@
     kids.push(field("Name", S.setup.name, function(v){S.setup.name=v;}, false));
     kids.push(field("Date", S.setup.date, function(v){S.setup.date=v;}, false));
 
+    /* The TV. Off until an address and a key are in. Nothing on the money path
+       depends on it (CLAUDE.md rule 3) — it is a broadcast of what is already
+       verified here. sync/README.md is where the address comes from. */
+    kids.push(h("div",{class:"sect",text:"TV board"}));
+    kids.push(field("Channel address", TV.api, function(v){ TV.api=v.trim(); tvSave(); }, false));
+    kids.push(field("Key", TV.key, function(v){ TV.key=v; tvSave(); }, false, {type:"password"}));
+    kids.push(h("div",{class:"row"},[
+      h("button",{class:"btn sm "+(TV.on?"":"quiet"),text:TV.on?"Sending to the TV":"Not sending",
+        onclick:function(){ TV.on=!TV.on; tvSave(); tvState.next=0; tvState.error=null; render(); if(TV.on) tvPost(true); }}),
+      h("button",{class:"btn quiet sm",text:"Send now",disabled:!TV.api||!TV.key,onclick:function(){ tvPost(true); }})
+    ]));
+    kids.push(h("div",{class:"note",text:"TV board · "+tvStatus()}));
+
     kids.push(h("button",{class:"btn "+(locked?"quiet":"gold"),style:"margin-top:8px",text:locked?"Unlock":"Lock for the round",onclick:function(){
       if(!locked){ S.locked=true; S.confirmUnlock=false; render(); return; }
       if(!S.confirmUnlock){ S.confirmUnlock=true; render(); return; }
@@ -453,6 +466,7 @@
     kids.push(h("div",{class:"row"},[
       h("span",{class:"note",text:(S.cutoff==null?"One skins pot, net":"Two pots · gross hcp "+S.cutoff+" and under")+(S.locked?" · locked":" · not locked")})
     ]));
+    if(TV.on || TV.api) kids.push(h("div",{class:"row"},[ h("span",{class:"note",text:"TV board · "+tvStatus()}) ]));
     kids.push(h("button",{class:"btn link",style:"text-align:left;padding:0",text:"How ties were decided",onclick:function(){ S.view="ties"; render(); }}));
     S.parked.forEach(function(p, idx){
       var L=draftLabel(p);
@@ -812,6 +826,77 @@
     }
     paint(top(eyebrow,"Live board", isTV()?h("button",{class:"topbtn btn quiet sm",style:"width:auto",text:"Cards",onclick:function(){S.view="home";render();}}):null), kids, null, isTV()?"tv":"");
   }
+
+  /* ---------- TV: the live channel to the club TV (sync/README.md) ----------
+     The phone posts the VERIFIED state, and nothing else, to a Google Apps
+     Script; the board page at /tv/ polls it. Money never depends on this: if
+     it never sends, every card, every pot and every payout on this phone is
+     exactly the same. It is a broadcast, not a step.
+
+     The address and the key live in their OWN localStorage item, never in S,
+     so they cannot ride out inside a round backup file. The key is typed on
+     this phone once; it is not in the repo and never will be. */
+  var TV_API = "";                 /* filled in when the Apps Script is deployed; not a secret */
+  var TV_SOURCE = (LS === "mengacci_v1") ? "real" : "try";
+  var TVK = "mengacci_tv";
+  var TV = (function(){ try{ var r=localStorage.getItem(TVK); if(r){ var o=JSON.parse(r); if(o) return o; } }catch(e){} return {api:"",key:"",on:false}; })();
+  if(!TV.api && TV_API) TV.api = TV_API;
+  function tvSave(){ try{ localStorage.setItem(TVK, JSON.stringify(TV)); }catch(e){} }
+
+  var tvState = { sig:"", sent:null, error:null, busy:false, next:0, tries:0 };
+
+  function tvPayload(){
+    return { format:"mengacci-live-v1", posted:new Date().toISOString(), source:TV_SOURCE,
+      event:{ name:S.setup.name, date:S.setup.date }, cutoff:S.cutoff,
+      people:S.people.map(function(p){ return {id:p.id, first:p.first, last:p.last}; }),
+      teams:S.teams.map(function(t){ return {id:t.id, players:t.players.slice()}; }),
+      withdrawn:S.withdrawn.slice(),
+      by:verifiedById(),
+      pending:S.cards.filter(function(c){ return c.status!=="confirmed"; }).length };
+  }
+  /* the payload minus its clock: what actually changed, so an idle phone is quiet */
+  function tvSig(p){ var q={}; for(var k in p) if(k!=="posted") q[k]=p[k]; return JSON.stringify(q); }
+
+  function tvPost(force){
+    if(!TV.on && !force) return;
+    if(!TV.api || !TV.key || tvState.busy) return;
+    var p=tvPayload(), sig=tvSig(p);
+    if(!force && sig===tvState.sig && !tvState.error) return;      /* nothing new to say */
+    if(!force && Date.now() < tvState.next) return;                /* backing off after a failure */
+    tvState.busy=true; tvState.error=null; tvRepaint();
+    /* text/plain on purpose: application/json makes the browser ask Apps Script
+       for a CORS preflight it does not answer, and the post never leaves. */
+    fetch(TV.api, { method:"POST", headers:{"Content-Type":"text/plain;charset=utf-8"},
+                    body:JSON.stringify({ key:TV.key, round:p }) })
+      .then(function(r){ return r.json(); })
+      .then(function(res){
+        tvState.busy=false;
+        if(res && res.ok){ tvState.sig=sig; tvState.sent=now(); tvState.error=null; tvState.tries=0; tvState.next=0; }
+        else { tvFailed((res && res.error) || "refused"); }
+        tvRepaint();
+      })
+      .catch(function(){ tvState.busy=false; tvFailed("no signal"); tvRepaint(); });
+  }
+  function tvFailed(msg){
+    tvState.error=msg; tvState.tries++;
+    tvState.next = Date.now() + Math.min(60000, 5000 * Math.pow(2, Math.min(tvState.tries,4)));
+  }
+  /* only repaint where the status line actually shows, so a post never
+     interrupts entry or moves anything under a thumb */
+  function tvRepaint(){ if(!S.draft && (S.view==="setup" || S.view==="home")) render(); }
+  function tvStatus(){
+    if(!TV.api) return "not connected";
+    if(!TV.key) return "no key yet";
+    if(!TV.on) return "off";
+    if(tvState.busy) return "sending…";
+    if(tvState.error) return tvState.error + " · retrying";
+    return tvState.sent ? "sent " + tvState.sent : "waiting to send";
+  }
+  /* Only in a real browser. test/walk.js runs this script in node with a stub
+     screen; a live timer there hangs the gate forever, which it did on
+     2026-09-10 until this guard went in. Not `navigator` — node has one of
+     those now. window.location is the honest test: the stub has no location. */
+  if(typeof window!=="undefined" && window.location) setInterval(function(){ tvPost(false); }, 5000);
 
   /* ---------- TIES ---------- */
   function renderTies(){

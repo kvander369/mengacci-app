@@ -8,7 +8,7 @@
  * the version shows at the bottom of Setup so "which version is my phone on"
  * has an answer.
  */
-const CACHE = 'mengacci-v1';
+const CACHE = 'mengacci-v2';
 
 const SHELL = [
   './',
@@ -39,6 +39,15 @@ self.addEventListener('fetch', e => {
   const req = e.request;
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
+
+  /* Two things this worker must keep its hands off, or the club TV freezes.
+     Its scope is the whole site, so without these it would answer both from
+     the cache and the board would show the same scores all afternoon:
+       - the live channel: every answer is new by definition, never cached;
+       - the board page itself, which is online-only and has no offline story. */
+  if (url.hostname.endsWith('script.google.com') || url.hostname.endsWith('script.googleusercontent.com')) return;
+  if (url.pathname.indexOf('/tv/') >= 0) return;
+
   const isFont = url.hostname === 'fonts.googleapis.com' || url.hostname === 'fonts.gstatic.com';
   e.respondWith(
     caches.match(req).then(hit => {

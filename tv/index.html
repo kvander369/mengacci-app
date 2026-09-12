@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#1E5A3C">
+<title>Mengacci $$ — live board</title>
+<link rel="icon" href="../icon-192.png">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap">
+<style>
+  /* The board on the club TV. Read from across a room: one type scale, no
+     instructions, no money, nothing that scrolls. docs/DESIGN.md "The live board".
+     The RULES live in ../scoring.js, which this page loads — the same file the
+     phone runs, never a copy. Only the layout below is this page's own. */
+  :root{
+    --bg:#E9EFE8; --panel:#FBFCFA; --ink:#16241C; --muted:#5C6B61; --line:#CBD6CD;
+    --green:#1E5A3C; --green-ink:#F4F8F4; --green-soft:#DCEADF;
+    --gold:#A8781F; --gold-soft:#F5EBD3;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{margin:0;background:var(--panel);color:var(--ink);
+    font-family:"Barlow",system-ui,-apple-system,"Segoe UI",Arial,sans-serif;font-size:16px;line-height:1.35;
+    overflow:hidden}
+  .screen{display:flex;flex-direction:column;height:100vh;height:100dvh;overflow:hidden}
+
+  .top{background:var(--green);color:var(--green-ink);padding:18px 40px 14px;display:flex;align-items:flex-end;justify-content:space-between;gap:22px;flex:none}
+  .tophead{display:flex;align-items:center;gap:22px;min-width:0}
+  .logo{width:84px;height:84px;flex:none;object-fit:contain;background:var(--green-ink);border-radius:50%;padding:5px}
+  .eyebrow{font-family:"Barlow Condensed",sans-serif;font-weight:600;letter-spacing:.12em;text-transform:uppercase;font-size:20px;opacity:.85}
+  .top h1{font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:40px;margin:2px 0 0;line-height:1}
+  .top .right{font-family:"Barlow Condensed",sans-serif;font-size:19px;font-weight:600;text-align:right;opacity:.9;white-space:nowrap}
+  .top .right .warn{color:var(--gold-soft)}
+
+  .scroll{flex:1;min-height:0;padding:18px 40px 24px;overflow:hidden}
+  .grid{display:grid;grid-template-columns:3fr 2fr;gap:0 48px;align-items:start}
+  .col{display:flex;flex-direction:column;gap:12px;min-width:0}
+  .col+.col{border-left:6px solid var(--green);padding-left:40px}
+  .sect{font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:32px;line-height:1.1;color:var(--ink);padding-top:6px}
+  .secthead{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+  .muted{color:var(--muted)}
+  .pill{font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:18px;padding:4px 9px;border-radius:999px;white-space:nowrap}
+  .pill.pend{background:var(--gold-soft);color:var(--gold)}
+  .pill.team{background:transparent;border:1px solid var(--line);color:var(--muted)}
+
+  table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+  th{font-family:"Barlow Condensed",sans-serif;font-weight:600;letter-spacing:.06em;text-transform:uppercase;font-size:20px;color:var(--muted);text-align:left;padding:8px 6px;border-bottom:1px solid var(--line)}
+  th.r{text-align:right}
+  td{padding:4px 6px;border-bottom:1px solid var(--line);vertical-align:middle}
+  td.n{text-align:right;font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:20px}
+  td.hn{font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:20px;width:40px;color:var(--muted)}
+  td.team{font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:26px}
+  td.topar{font-size:30px;color:var(--green)}
+  td.who{font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:26px;padding-left:28px}
+  tr.skin td{background:var(--green-soft)}
+  tr.skin td.who{color:var(--green)}
+  tr.skin td.hn{width:60px;font-size:24px;color:var(--ink)}
+  tr.skin td.n{font-size:26px}
+
+  /* the only screen that is not the board: nothing has arrived yet */
+  .blank{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;text-align:center;padding:40px}
+  .blank .big{font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:52px;line-height:1;color:var(--muted)}
+  .blank .sub{font-size:22px;color:var(--muted);max-width:26em}
+
+  /* a small screen still shows the board, one column, for a phone check */
+  @media (max-width:899px){
+    body{overflow:auto}
+    .screen{height:auto;min-height:100vh}
+    .top{padding:14px 16px 12px}
+    .logo{width:52px;height:52px}
+    .top h1{font-size:28px}
+    .eyebrow{font-size:14px}
+    .top .right{font-size:14px}
+    .scroll{padding:12px 16px 24px;overflow:visible}
+    .grid{grid-template-columns:1fr;gap:18px}
+    .col+.col{border-left:0;border-top:6px solid var(--green);padding-left:0;padding-top:14px}
+    .sect{font-size:22px}
+    td.team,td.who{font-size:20px}
+    td.topar{font-size:24px}
+  }
+</style>
+</head>
+<body>
+<div class="screen" id="screen"></div>
+<script src="../scoring.js"></script>
+<script>
+(function(){
+  "use strict";
+  var Sc = window.Scoring;
+
+  /* Where the board reads from. Filled in when the Apps Script is deployed
+     (sync/README.md). ?api=<url> overrides it for a test without a redeploy.
+     The board does not care WHICH app posted — real or try. Whatever arrived
+     last is what is on the TV. Kyle, 2026-09-10: "can't there be an option?" */
+  var TV_API = "";
+
+  var EVERY = 20000;          /* poll, in ms */
+  var STALE = 90000;          /* older than this and the top corner says so */
+
+  var q = new URLSearchParams(location.search);
+  if (q.get("api")) TV_API = q.get("api");
+
+  var LIVE = null;            /* last good payload */
+  var lastOK = 0;             /* when it arrived, ms */
+  var everFetched = false;
+
+  /* ---------- tiny DOM helper, same shape as the app's ---------- */
+  function h(tag, attrs, kids){
+    var e = document.createElement(tag);
+    if (attrs) for (var k in attrs){
+      if (k === "text") e.textContent = attrs[k];
+      else if (k === "html") e.innerHTML = attrs[k];
+      else if (k === "class") e.className = attrs[k];
+      else e.setAttribute(k, attrs[k]);
+    }
+    (kids || []).forEach(function(c){ if (c) e.appendChild(c); });
+    return e;
+  }
+  function clock(ms){ var d = new Date(ms), hh = d.getHours()%12||12, m = d.getMinutes(); return hh+":"+(m<10?"0":"")+m; }
+
+  /* ---------- names: first name, plus a last initial only when two share it ---------- */
+  var ROSTER = [];
+  function buildRoster(L){
+    ROSTER = [];
+    var people = {};
+    (L.people||[]).forEach(function(p){ people[p.id] = p; });
+    (L.teams||[]).forEach(function(t){
+      var out = (L.withdrawn||[]).indexOf(t.id) >= 0;
+      (t.players||[]).forEach(function(id){
+        var p = people[id]; if (!p) return;
+        ROSTER.push({ id:id, first:p.first, last:p.last, name:(p.first+" "+p.last).trim(), out:out });
+      });
+    });
+  }
+  function player(id){ for (var i=0;i<ROSTER.length;i++) if (ROSTER[i].id===id) return ROSTER[i]; return null; }
+  function first(id){
+    var p = player(id); if (!p) return "?";
+    var clash = ROSTER.some(function(o){ return o.id!==p.id && o.first===p.first; });
+    return p.first + (clash && p.last ? " "+p.last.charAt(0)+"." : "");
+  }
+
+  /* ---------- the board ---------- */
+  function render(){
+    var s = document.getElementById("screen");
+    s.textContent = "";
+
+    if (!LIVE || LIVE.empty || !(LIVE.teams||[]).length){
+      s.appendChild(head("Mengacci $$ · CCW", "Live board"));
+      s.appendChild(h("div",{class:"blank"},[
+        h("div",{class:"big",text: !TV_API ? "Board not connected" : everFetched ? "No teams yet" : "Waiting for the first scores"}),
+        h("div",{class:"sub",text: !TV_API ? "This page has no address to read from." : ""})
+      ]));
+      return;
+    }
+
+    buildRoster(LIVE);
+    var by = LIVE.by || {};
+    var ids = Object.keys(by);
+    var pend = LIVE.pending || 0;
+    var st = Sc.standings(LIVE.teams, by, LIVE.withdrawn || []);
+    var teamsTotal = LIVE.teams.length - st.withdrawn.length, teamsIn = st.done.length;
+    var status = Sc.boardStatus(teamsTotal, teamsIn, pend);
+    var eyebrow = status === "none" ? "No teams yet"
+                : status === "final" ? "FINAL · all " + teamsTotal + " teams reported"
+                : "TENTATIVE · " + teamsIn + " of " + teamsTotal + " teams reported";
+
+    /* left: the tournament */
+    var tt = h("table",{},[h("tr",{},[h("th",{text:""}),h("th",{text:"Team"}),h("th",{text:"To par",class:"r"}),h("th",{text:"Net",class:"r"})])]);
+    st.done.forEach(function(x, i){
+      tt.appendChild(h("tr",{},[
+        h("td",{class:"hn",text:String(i+1)}),
+        h("td",{class:"team",text:x.team.players.map(first).join(" & ")}),
+        h("td",{class:"n topar",text:Sc.toPar(x.total)}),
+        h("td",{class:"n muted",text:String(x.total)})
+      ]));
+    });
+    st.waiting.forEach(function(t){
+      tt.appendChild(h("tr",{},[
+        h("td",{class:"hn",text:""}),
+        h("td",{class:"team muted",text:t.players.map(first).join(" & ")}),
+        h("td",{colspan:"2"},[h("span",{class:"pill team",text:"Scores not in yet"})])
+      ]));
+    });
+
+    /* right: the skins, one block per pot */
+    var players = ids.map(function(pid){ return by[pid]; });
+    var pots = Sc.pots(players, LIVE.cutoff == null ? null : LIVE.cutoff);
+    function potBlock(members, useGross, label){
+      var t = h("table",{},[h("tr",{},[h("th",{text:"Hole"}),h("th",{text:"Skin"}),h("th",{text:useGross?"Gross":"Net",class:"r"})])]);
+      var n = 0;
+      Sc.skins(members, useGross).forEach(function(r){
+        if (r.kind !== "skin") return;
+        n++;
+        t.appendChild(h("tr",{class:"skin"},[
+          h("td",{class:"hn",text:String(r.hole)}),
+          h("td",{class:"who",text: player(r.holder) ? player(r.holder).name : "?"}),
+          h("td",{class:"n",text:String(r.score)})
+        ]));
+      });
+      if (!n) t.appendChild(h("tr",{},[h("td",{colspan:"3",class:"muted",text:"No skins yet"})]));
+      var hd = h("div",{class:"sect secthead"},[h("span",{text:label})]);
+      if (status !== "final" && teamsTotal) hd.appendChild(h("span",{class:"pill pend",text:"Not all scores in yet"}));
+      return [hd, t];
+    }
+    var blocks = LIVE.cutoff == null
+      ? potBlock(pots.net, false, "Net skins")
+      : potBlock(pots.gross, true, "Gross skins · hcp " + LIVE.cutoff + " and under")
+          .concat(potBlock(pots.net, false, "Net skins · hcp over " + LIVE.cutoff));
+
+    s.appendChild(head(eyebrow, (LIVE.event && LIVE.event.name) || "Mengacci $$"));
+    s.appendChild(h("div",{class:"scroll"},[
+      h("div",{class:"grid"},[
+        h("div",{class:"col"},[h("div",{class:"sect",text:"Tournament · 2-man best ball net"}), tt]),
+        h("div",{class:"col"}, blocks)
+      ])
+    ]));
+  }
+
+  /* Top right: when the PHONE last sent, not when this page last asked. If our
+     own polling has gone quiet for a minute and a half, say so in gold rather
+     than let a frozen board look live. */
+  function head(eyebrow, title){
+    var age = lastOK ? Date.now() - lastOK : 0;
+    var sent = LIVE && (LIVE.received || LIVE.posted) ? clock(Date.parse(LIVE.received || LIVE.posted)) : null;
+    var right = !lastOK ? h("div",{class:"right"},[h("span",{class:"warn",text:"connecting"})])
+      : age > STALE ? h("div",{class:"right"},[h("span",{class:"warn",text:"not updating · scores as of "+(sent||clock(lastOK))})])
+      : h("div",{class:"right",text: sent ? "scores as of "+sent : "updated "+clock(lastOK)});
+    return h("div",{class:"top"},[
+      h("div",{class:"tophead"},[
+        h("img",{class:"logo",src:"../icon-192.png",alt:""}),
+        h("div",{},[h("div",{class:"eyebrow",text:eyebrow}), h("h1",{text:title})])
+      ]),
+      right
+    ]);
+  }
+
+  /* ---------- the poll: never blank the board on a failure ---------- */
+  function poll(){
+    if (!TV_API){ render(); return; }
+    var url = TV_API + (TV_API.indexOf("?") >= 0 ? "&" : "?") + "t=" + Date.now();
+    fetch(url, { method:"GET", cache:"no-store" })
+      .then(function(r){ return r.json(); })
+      .then(function(data){
+        everFetched = true;
+        if (data && data.format === "mengacci-live-v1"){ LIVE = data; lastOK = Date.now(); }
+        render();
+      })
+      .catch(function(){ render(); });   /* keep the last good board up */
+  }
+
+  render();
+  poll();
+  setInterval(poll, EVERY);
+})();
+</script>
+</body>
+</html>
