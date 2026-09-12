@@ -284,7 +284,15 @@
     scr.innerHTML = "";
 
     var pagesFor = Math.max(1, Math.ceil(TEAMS.length / ROWS));
-    var right = [{text: n ? "After match " + n + " of 5" : "No scores yet"}];
+    /* A part-entered match must say so. Kyle can send at any point in a round,
+       and "After match 3 of 5" with 12 of 25 in makes the other 13 look like
+       they are losing when they simply are not on the sheet yet. Same rule as
+       the Mengacci board: show what is in, and show what is still out. */
+    var inThis = n ? Pts.entered(points, n-1) : 0;
+    var part = n && inThis < TEAMS.length;
+    var right = [{text: n ? (part ? "Match " + n + " coming in" : "After match " + n + " of 5")
+                          : "No scores yet"}];
+    if(part) right.push({text: inThis + " of " + TEAMS.length + " in", warn:true});
     if(n && pagesFor > 1) right.push({text: (page + 1) + " of " + pagesFor});
     if(MG_API){
       if(lastOK) right.push({text:"Updated " + clock(lastOK), warn:(Date.now()-lastOK > STALE)});
