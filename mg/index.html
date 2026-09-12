@@ -1,0 +1,363 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#1E5A3C">
+<title>Vander-Total-Points Pot</title>
+<link rel="icon" href="ccw-logo.png">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap">
+<style>
+  /* Two screens in one file: the BOARD (the club TV, and any phone that opens
+     this address) and ENTRY (?enter=1, Kyle's phone). The arithmetic is in
+     points.js, which both load. Read from across a room: one type scale, no
+     instructions on the board, nothing that scrolls on a TV. */
+  :root{
+    --bg:#E9EFE8; --panel:#FBFCFA; --ink:#16241C; --muted:#5C6B61; --line:#CBD6CD;
+    --green:#1E5A3C; --green-ink:#F4F8F4; --green-soft:#DCEADF;
+    --gold:#A8781F; --gold-soft:#F5EBD3;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{margin:0;background:var(--panel);color:var(--ink);
+    font-family:"Barlow",system-ui,-apple-system,"Segoe UI",Arial,sans-serif;font-size:16px;line-height:1.35;
+    overflow:hidden}
+  .screen{display:flex;flex-direction:column;height:100vh;height:100dvh;overflow:hidden}
+
+  /* ---------- the top band, shared ---------- */
+  .top{background:var(--green);color:var(--green-ink);padding:14px 40px 12px;display:flex;align-items:center;justify-content:space-between;gap:24px;flex:none}
+  .tophead{display:flex;align-items:center;gap:24px;min-width:0}
+  .logo{width:104px;height:104px;flex:none;object-fit:contain;background:var(--green-ink);border-radius:50%;padding:8px}
+  .top h1{font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:52px;margin:0;line-height:1;letter-spacing:.01em}
+  .eyebrow{font-family:"Barlow Condensed",sans-serif;font-weight:600;letter-spacing:.14em;text-transform:uppercase;font-size:19px;opacity:.85}
+  .top .right{font-family:"Barlow Condensed",sans-serif;font-size:22px;font-weight:600;text-align:right;opacity:.92;white-space:nowrap;line-height:1.25}
+  .top .right .warn{color:var(--gold-soft)}
+
+  /* ---------- the board ---------- */
+  .sun{background:var(--gold-soft);color:var(--gold);flex:none;padding:8px 40px;
+    font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:26px;letter-spacing:.04em;
+    display:flex;align-items:baseline;gap:16px;white-space:nowrap;overflow:hidden}
+  .sun .lab{text-transform:uppercase;letter-spacing:.12em;font-size:20px;opacity:.9}
+  .sun .who{color:#7A560F;overflow:hidden;text-overflow:ellipsis}
+
+  .cols{flex:1;min-height:0;padding:10px 40px 18px;display:grid;grid-template-columns:1fr 1fr;gap:0 44px;align-items:start;overflow:hidden}
+  .col{min-width:0}
+  .col+.col{border-left:5px solid var(--green-soft);padding-left:40px}
+
+  table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+  th{font-family:"Barlow Condensed",sans-serif;font-weight:600;letter-spacing:.08em;text-transform:uppercase;font-size:17px;color:var(--muted);text-align:right;padding:4px 5px;border-bottom:2px solid var(--line)}
+  th.l{text-align:left}
+  td{padding:3px 5px;border-bottom:1px solid var(--line);white-space:nowrap}
+  td.pos{font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:22px;color:var(--muted);text-align:right;width:44px}
+  td.team{font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:27px;overflow:hidden;text-overflow:ellipsis;max-width:0;width:99%}
+  td.r{font-family:"Barlow Condensed",sans-serif;font-weight:500;font-size:20px;color:var(--muted);text-align:right;width:42px}
+  td.tot{font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:30px;text-align:right;width:64px}
+  td.sn{font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:24px;text-align:right;width:56px;color:var(--gold)}
+  tr.lead td{background:var(--green-soft)}
+  tr.lead td.pos,tr.lead td.tot{color:var(--green)}
+  tr.sunlead td.sn{background:var(--gold-soft);font-weight:700}
+  td.dash{color:var(--line)}
+
+  /* ---------- entry ---------- */
+  .pad{flex:1;min-height:0;overflow:auto;padding:14px 16px 120px;background:var(--bg)}
+  .rounds{display:flex;gap:8px;padding:12px 16px 0;flex:none;background:var(--bg)}
+  .rounds button{flex:1;font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:24px;padding:14px 0;
+    border:2px solid var(--line);background:var(--panel);color:var(--muted);border-radius:12px}
+  .rounds button.on{background:var(--green);border-color:var(--green);color:var(--green-ink)}
+  .count{padding:10px 16px 0;font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:22px;color:var(--muted);background:var(--bg);flex:none}
+  .row{display:flex;align-items:center;gap:12px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-top:8px}
+  .row .nm{flex:1;min-width:0;font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:23px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .row input{width:96px;flex:none;font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:30px;text-align:center;
+    padding:10px 4px;border:2px solid var(--line);border-radius:10px;background:#fff;color:var(--ink)}
+  .row input:focus{border-color:var(--green);outline:none}
+  .row.done{background:var(--green-soft);border-color:var(--green-soft)}
+  .bar{position:fixed;left:0;right:0;bottom:0;background:var(--panel);border-top:2px solid var(--line);padding:12px 16px;display:flex;gap:10px}
+  .bar button{flex:1;font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:24px;padding:16px 0;border:0;border-radius:12px;background:var(--green);color:var(--green-ink)}
+  .bar button.ghost{background:var(--panel);color:var(--green);border:2px solid var(--green);flex:0 0 40%}
+  .note{padding:14px 16px 0;font-size:15px;color:var(--muted)}
+  .setup{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px;margin-top:14px}
+  .setup label{display:block;font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:19px;color:var(--muted);margin-bottom:4px}
+  .setup input{width:100%;font-size:16px;padding:10px;border:2px solid var(--line);border-radius:8px}
+
+  .blank{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;text-align:center;padding:40px}
+  .blank .big{font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:56px;line-height:1;color:var(--muted)}
+  .blank .sub{font-size:22px;color:var(--muted);max-width:26em}
+
+  /* a phone opening the board gets one column that scrolls */
+  @media (max-width:899px){
+    body{overflow:auto}
+    .screen{height:auto;min-height:100vh}
+    .top{padding:12px 14px;gap:12px}
+    .logo{width:60px;height:60px;padding:5px}
+    .top h1{font-size:27px}
+    .eyebrow{font-size:13px}
+    .top .right{font-size:15px}
+    .sun{padding:7px 14px;font-size:19px;flex-wrap:wrap;white-space:normal}
+    .sun .lab{font-size:15px}
+    .cols{grid-template-columns:1fr;padding:8px 12px 24px;overflow:visible}
+    .col+.col{border-left:0;padding-left:0;border-top:5px solid var(--green-soft);padding-top:10px}
+    td.team{font-size:21px}
+    td.tot{font-size:24px}
+    td.sn{font-size:19px}
+    td.r{font-size:16px;width:34px}
+  }
+</style>
+</head>
+<body>
+<div class="screen" id="screen"></div>
+<script src="points.js"></script>
+<script>
+(function(){
+  "use strict";
+  var P = window.Points;
+
+  /* The 25 teams, as Kyle sent them 2026-09-12. Fixed for the weekend: there
+     is no roster screen, because there is nothing to change. mg/teams.json is
+     the same list. */
+  var TEAMS = [
+    ["Ryan Wessendorf","Mike Grieder"],
+    ["Gary Valimont","Carl Valimont"],
+    ["Pete Heintz","Martin Pelatowski"],
+    ["John Damiano","John Burke"],
+    ["Scott Milford","Blake Tietze"],
+    ["Nick Guiditta","Todd DeSaulniers"],
+    ["Jay Rotatori","Joe Armington"],
+    ["Jimmy Mengacci","Justin Reihl"],
+    ["Luke Freimuth","Doug Lamond"],
+    ["Tom McDonald","Will McDonald"],
+    ["Tim Sullivan","Steve Sullivan"],
+    ["Gene Fercodini","Kevin Greene"],
+    ["Chuck Hill","Jeff Bradley"],
+    ["BJ Paret","Rob Plasky"],
+    ["Steve Shaker","Michael Shaker"],
+    ["Bob Roscoe","Jeff Perkins"],
+    ["Eddie Bushka","Zach Gorman"],
+    ["Dave Jacoboski","Todd Volpe"],
+    ["Steve Malagutti","Greg Balek"],
+    ["Brian Godin","Ed Godin"],
+    ["John Sheehy","Steve Paduano"],
+    ["Frank Monteiro","Dave Martin"],
+    ["Dave Bisaillon","Carmine Poletta"],
+    ["Jeremy Greco","Tommy Daddona"],
+    ["Kyle Vanderlick","Bob Marages"]
+  ];
+
+  var TITLE = "Vander-Total-Points Pot";
+  var STORE = "vtp_2026";           /* its own key. The Mengacci app's round is
+                                       stored under a different one and this page
+                                       never reads or writes it. */
+  var KEYSTORE = "vtp_key";         /* the posting key, this device only */
+
+  /* The live channel, when there is one: the same Apps Script the Mengacci
+     board uses (sync/README.md), with board=vtp so the two never collide.
+     Empty until Kyle deploys it; ?api=<url> sets it without a redeploy. */
+  var MG_API = "";
+  var EVERY = 20000, STALE = 120000;
+
+  var q = new URLSearchParams(location.search);
+  if (q.get("api")) MG_API = q.get("api");
+  var ENTRY = q.get("enter") === "1";
+
+  var points = load();
+  var lastPost = 0, lastOK = 0, everFetched = false, postState = "";
+
+  /* ---------- storage ---------- */
+  function blank(){ return TEAMS.map(function(){ return [null,null,null,null,null]; }); }
+  function load(){
+    try{
+      var raw = localStorage.getItem(STORE);
+      if(!raw) return blank();
+      var p = JSON.parse(raw);
+      if(!Array.isArray(p) || p.length !== TEAMS.length) return blank();
+      return p.map(function(r){ r = Array.isArray(r)?r:[]; var o=[]; for(var k=0;k<5;k++) o.push(r[k]===undefined?null:r[k]); return o; });
+    }catch(e){ return blank(); }
+  }
+  function save(){ try{ localStorage.setItem(STORE, JSON.stringify(points)); }catch(e){} }
+
+  /* ---------- DOM helper ---------- */
+  function h(tag, attrs, kids){
+    var e = document.createElement(tag);
+    if(attrs) for(var k in attrs){
+      if(k === "text") e.textContent = attrs[k];
+      else if(k === "class") e.className = attrs[k];
+      else if(k.slice(0,2) === "on") e[k] = attrs[k];
+      else e.setAttribute(k, attrs[k]);
+    }
+    (kids||[]).forEach(function(c){ if(c) e.appendChild(c); });
+    return e;
+  }
+  function clock(ms){ var d=new Date(ms), hh=d.getHours()%12||12, m=d.getMinutes(); return hh+":"+(m<10?"0":"")+m; }
+
+  function topBand(rightLines){
+    return h("div",{class:"top"},[
+      h("div",{class:"tophead"},[
+        h("img",{class:"logo",src:"ccw-logo.png",alt:"Country Club of Waterbury"}),
+        h("div",{},[
+          h("div",{class:"eyebrow",text:"Country Club of Waterbury"}),
+          h("h1",{text:TITLE})
+        ])
+      ]),
+      h("div",{class:"right"}, rightLines.map(function(l){
+        return h("div", l.warn ? {class:"warn",text:l.text} : {text:l.text});
+      }))
+    ]);
+  }
+
+  /* ---------- the board ---------- */
+  function renderBoard(){
+    var rows = P.standings(TEAMS, points);
+    var n = P.roundsIn(points);
+    var scr = document.getElementById("screen");
+    scr.innerHTML = "";
+
+    var right = [{text: n ? "After match " + n + " of 5" : "No scores yet"}];
+    if(MG_API){
+      if(lastOK) right.push({text:"Updated " + clock(lastOK), warn:(Date.now()-lastOK > STALE)});
+      else if(everFetched) right.push({text:"Waiting for scores"});
+    } else {
+      right.push({text:"25 teams"});
+    }
+    scr.appendChild(topBand(right));
+
+    if(!n){
+      scr.appendChild(h("div",{class:"blank"},[
+        h("div",{class:"big",text:"No scores yet"}),
+        h("div",{class:"sub",text:"The board fills in as each match comes in."})
+      ]));
+      return;
+    }
+
+    /* the Sunday money strip */
+    var sunLeaders = P.leaders(rows,"sunday");
+    var anySunday = rows.some(function(r){ return r.sundayPlayed > 0; });
+    var sunText = anySunday
+      ? sunLeaders.map(function(r){ return r.name; }).join("  ·  ") + "   " + sunLeaders[0].sunday
+      : "Matches 4 and 5";
+    scr.appendChild(h("div",{class:"sun"},[
+      h("span",{class:"lab",text:"Sunday money"}),
+      h("span",{class:"who",text:sunText})
+    ]));
+
+    var half = Math.ceil(rows.length/2);
+    var cols = h("div",{class:"cols"});
+    [rows.slice(0,half), rows.slice(half)].forEach(function(part){
+      cols.appendChild(h("div",{class:"col"},[table(part)]));
+    });
+    scr.appendChild(cols);
+  }
+
+  function table(part){
+    var head = h("tr",{},[
+      h("th",{class:"l",text:""}), h("th",{class:"l",text:"Team"}),
+      h("th",{text:"1"}),h("th",{text:"2"}),h("th",{text:"3"}),h("th",{text:"4"}),h("th",{text:"5"}),
+      h("th",{text:"Tot"}), h("th",{text:"Sun"})
+    ]);
+    var body = part.map(function(r){
+      var cells = [
+        h("td",{class:"pos",text:(r.rank===1?"":"")+r.rank}),
+        h("td",{class:"team",text:r.name})
+      ];
+      r.rounds.forEach(function(v){
+        cells.push(h("td",{class:"r"+(v===null?" dash":""),text:v===null?"–":String(v)}));
+      });
+      cells.push(h("td",{class:"tot",text:String(r.total)}));
+      cells.push(h("td",{class:"sn",text:r.sundayPlayed?String(r.sunday):"–"}));
+      var tr = h("tr",{class:(r.rank===1?"lead ":"")+(r.sundayPlayed&&r.sunRank===1?"sunlead":"")},cells);
+      return tr;
+    });
+    return h("table",{},[h("thead",{},[head]), h("tbody",{},body)]);
+  }
+
+  /* ---------- entry ---------- */
+  var round0 = 0;
+  function renderEntry(){
+    var scr = document.getElementById("screen");
+    scr.innerHTML = "";
+    scr.appendChild(topBand([{text:"Entry"},{text:postState||(MG_API?"TV connected":"This phone only")}]));
+
+    var rounds = h("div",{class:"rounds"});
+    for(var k=0;k<5;k++)(function(k){
+      rounds.appendChild(h("button",{class:(k===round0?"on":""),text:"Match "+(k+1),
+        onclick:function(){ round0=k; renderEntry(); }}));
+    })(k);
+    scr.appendChild(rounds);
+    scr.appendChild(h("div",{class:"count",id:"count",text:count()}));
+
+    var pad = h("div",{class:"pad"});
+    TEAMS.forEach(function(pair,i){
+      var val = points[i][round0];
+      var inp = h("input",{type:"number",inputmode:"decimal",value:(val===null?"":String(val)),
+        onchange:function(){ setVal(i,this.value); }, oninput:function(){ setVal(i,this.value); }});
+      pad.appendChild(h("div",{class:"row"+(val===null?"":" done"),id:"row"+i},[
+        h("div",{class:"nm",text:P.teamName(pair)}), inp
+      ]));
+    });
+
+    var setup = h("div",{class:"setup"},[
+      h("label",{text:"TV key — type once, stays on this phone"}),
+      h("input",{type:"password",value:getKey(),placeholder:"the POST_KEY from the script",
+        onchange:function(){ setKey(this.value); }})
+    ]);
+    pad.appendChild(setup);
+    pad.appendChild(h("div",{class:"note",text:"Scores are saved on this phone the moment you type them. Send to TV pushes them to the club screen."}));
+    scr.appendChild(pad);
+
+    scr.appendChild(h("div",{class:"bar"},[
+      h("button",{class:"ghost",text:"Board",onclick:function(){ location.search="";}}),
+      h("button",{text:"Send to TV",onclick:post})
+    ]));
+  }
+  function count(){ return P.entered(points, round0) + " of " + TEAMS.length + " in for match " + (round0+1); }
+  function setVal(i, v){
+    points[i][round0] = (v === "" ? null : Number(v));
+    if(points[i][round0] !== null && !isFinite(points[i][round0])) points[i][round0] = null;
+    save();
+    var row = document.getElementById("row"+i);
+    if(row) row.className = "row" + (points[i][round0]===null?"":" done");
+    var c = document.getElementById("count"); if(c) c.textContent = count();
+  }
+  function getKey(){ try{ return localStorage.getItem(KEYSTORE)||""; }catch(e){ return ""; } }
+  function setKey(v){ try{ localStorage.setItem(KEYSTORE, v); }catch(e){} }
+
+  /* ---------- the channel ---------- */
+  function post(){
+    if(!MG_API){ flash("No TV address set yet"); return; }
+    if(!getKey()){ flash("Type the TV key first"); return; }
+    flash("Sending…");
+    fetch(MG_API, {
+      method:"POST", redirect:"follow",
+      headers:{"Content-Type":"text/plain;charset=utf-8"},
+      body: JSON.stringify({ key:getKey(), board:"vtp", round:{
+        format:"vtp-live-v1", title:TITLE, posted:new Date().toISOString(),
+        teams:TEAMS, points:points
+      }})
+    }).then(function(r){ return r.json(); })
+      .then(function(j){ flash(j && j.ok ? "Sent to TV" : "Not sent: " + ((j&&j.error)||"?")); })
+      .catch(function(e){ flash("Not sent: " + e.message); });
+  }
+  function flash(m){ postState = m; var t = document.querySelector(".top .right"); if(t) t.lastChild.textContent = m; }
+
+  function pull(){
+    if(!MG_API) return;
+    fetch(MG_API + (MG_API.indexOf("?")>=0?"&":"?") + "board=vtp&t=" + Date.now())
+      .then(function(r){ return r.json(); })
+      .then(function(j){
+        everFetched = true;
+        if(j && j.format === "vtp-live-v1" && Array.isArray(j.points)){
+          points = j.points; lastOK = Date.now(); renderBoard();
+        } else if(j && j.empty){ renderBoard(); }
+      })
+      .catch(function(){ everFetched = true; });
+  }
+
+  /* ---------- go ---------- */
+  if(ENTRY){ renderEntry(); }
+  else{
+    renderBoard();
+    if(MG_API){ pull(); setInterval(pull, EVERY); }
+    setInterval(function(){ if(MG_API) renderBoard(); }, 60000);
+  }
+})();
+</script>
+</body>
+</html>
