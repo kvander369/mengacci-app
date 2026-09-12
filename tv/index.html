@@ -157,7 +157,8 @@
     (kids || []).forEach(function(c){ if (c) e.appendChild(c); });
     return e;
   }
-  function clock(ms){ var d = new Date(ms), hh = d.getHours()%12||12, m = d.getMinutes(); return hh+":"+(m<10?"0":"")+m; }
+  function clock(ms){ var d = new Date(ms), h = d.getHours(), m = d.getMinutes();
+    return (h%12||12) + ":" + (m<10?"0":"") + m + (h<12 ? "am" : "pm"); }
 
   /* ---------- names: first name, plus a last initial only when two share it ---------- */
   var ROSTER = [];
@@ -341,14 +342,26 @@
   /* Top right: when the PHONE last sent, not when this page last asked. If our
      own polling has gone quiet for a minute and a half, say so in gold rather
      than let a frozen board look live. */
-  /* The date, spelled out. Kyle, 2026-09-12: "We should have the date up there
-     somewhere too." It comes from the round the phone posted, so a board left
-     running overnight cannot claim to be today's. */
+  /* The date, spelled out, and NOT typed by anyone. Kyle, 2026-09-12: "The
+     date should be automatic. Not by me." So it is the day the phone actually
+     sent these scores — which is the day they were played, needs no setting up,
+     and cannot be left wrong from last time. A board still running the next
+     morning shows yesterday, correctly, because that is when the round was.
+     The Setup date is only a fallback for a feed that carries no timestamp. */
   function eventDate(){
+    var stamp = LIVE && (LIVE.received || LIVE.posted);
+    if (stamp) {
+      var t = new Date(stamp);
+      if (!isNaN(t)) return spell(t);
+    }
     var raw = LIVE && LIVE.event && LIVE.event.date;
     if (!raw) return "";
     var d = new Date(String(raw) + (String(raw).length === 10 ? "T12:00:00" : ""));
     if (isNaN(d)) return String(raw);
+    return spell(d);
+  }
+
+  function spell(d){
     var days = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
     var mons = ["January","February","March","April","May","June","July",
                 "August","September","October","November","December"];

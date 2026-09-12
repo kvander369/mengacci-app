@@ -305,7 +305,8 @@
     (kids||[]).forEach(function(c){ if(c) e.appendChild(c); });
     return e;
   }
-  function clock(ms){ var d=new Date(ms), hh=d.getHours()%12||12, m=d.getMinutes(); return hh+":"+(m<10?"0":"")+m; }
+  function clock(ms){ var d = new Date(ms), h = d.getHours(), m = d.getMinutes();
+    return (h%12||12) + ":" + (m<10?"0":"") + m + (h<12 ? "am" : "pm"); }
 
   function topBand(rightLines){
     /* Tapping the crest on the board goes to the entry screen, and on the
