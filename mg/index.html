@@ -57,11 +57,7 @@
   td{padding:calc(7px * var(--k)) 5px;border-bottom:1px solid var(--line);white-space:nowrap}
   td.pos{font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:calc(38px * var(--k));color:var(--muted);text-align:right;width:calc(70px * var(--k))}
   td.team{font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:calc(52px * var(--k));overflow:hidden;text-overflow:ellipsis;max-width:0;width:99%}
-  /* The match scores sit just under the total, not half its size. Kyle,
-     2026-09-12, third time asking: "I still think the point for each round are
-     too small". Row height is set by the total at 62px, so anything up to
-     about 56px here is free — it costs no height and fit() does not shrink. */
-  td.r{font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:calc(56px * var(--k));color:var(--ink);text-align:right;width:calc(114px * var(--k))}
+  td.r{font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:calc(46px * var(--k));color:var(--ink);text-align:right;width:calc(92px * var(--k))}
   td.tot{font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:calc(62px * var(--k));text-align:right;width:calc(130px * var(--k))}
   td.sn{font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:calc(46px * var(--k));text-align:right;width:calc(100px * var(--k));color:var(--gold)}
   th{font-size:calc(24px * var(--k))}
@@ -412,17 +408,7 @@
       h("th",{text:"Tot"}), h("th",{text:"Sun"})
     ]);
     var body = part.map(function(r){
-      /* A filler row must carry the SAME cells as a real one, or the column
-         widths shift and the last page looks broken. Kyle, 2026-09-12: "when
-         it scrolls the third screen is messed up." It was one cell in a
-         nine-column table. */
-      if(!r) return h("tr",{class:"pad"},[
-        h("td",{class:"pos",text:"\u00a0"}),
-        h("td",{class:"team",text:"\u00a0"}),
-        h("td",{class:"r"}),h("td",{class:"r"}),h("td",{class:"r"}),h("td",{class:"r"}),h("td",{class:"r"}),
-        h("td",{class:"tot",text:"\u00a0"}),
-        h("td",{class:"sn",text:"\u00a0"})
-      ]);
+      if(!r) return h("tr",{class:"pad"},[h("td",{class:"team",text:"\u00a0"})]);
       var cells = [
         h("td",{class:"pos",text:String(r.rank)}),
         h("td",{class:"team",text:r.name})
