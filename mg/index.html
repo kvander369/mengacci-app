@@ -396,11 +396,39 @@
     scr.appendChild(pad);
 
     scr.appendChild(h("div",{class:"bar"},[
-      h("button",{class:"ghost",text:"Board",onclick:function(){ location.href="./"; }}),
+      h("button",{class:"ghost",text:(empty() ? "Get from TV" : "Board"),
+        onclick:function(){ if(empty()) grab(); else location.href="./"; }}),
       h("button",{text:"Send to TV",onclick:post})
     ]));
   }
   function count(){ return Pts.entered(points, round0) + " of " + TEAMS.length + " in for match " + (round0+1); }
+  function empty(){ return Pts.roundsIn(points) === 0; }
+
+  /* Bring the scores back down from the channel. Kyle, 2026-09-12, after
+     re-adding the app to his home screen: "downloaded it from safari and it
+     wiped out all the scores". Nothing was lost — an iPhone home-screen app
+     gets its own storage, so that copy opened with none. The channel is the
+     copy that survives a phone, so entry can read it as well as write it.
+     It only ever lands on an empty screen, so it cannot wipe work in hand. */
+  function grab(){
+    if(!MG_API){ flash("No TV address"); return; }
+    flash("Getting…");
+    fetch(MG_API + (MG_API.indexOf("?")>=0?"&":"?") + "board=vtp&t=" + Date.now())
+      .then(function(r){ return r.json(); })
+      .then(function(j){
+        if(j && j.format === "vtp-live-v1" && Array.isArray(j.points) && j.points.length === TEAMS.length){
+          if(!empty()){ flash("Not empty — nothing changed"); return; }
+          points = j.points;
+          if(j.event) setEvent(j.event);
+          save();
+          postState = "Got " + Pts.roundsIn(points) + " match(es) from the TV";
+          renderEntry();
+        } else {
+          flash(j && j.empty ? "The TV has nothing yet" : "Nothing to get");
+        }
+      })
+      .catch(function(e){ flash("Could not reach the TV: " + e.message); });
+  }
   function show(v){ return v === null ? "–" : (v === Math.round(v) ? String(v) : v.toFixed(1)); }
 
   function stepButtons(){
@@ -488,7 +516,10 @@
   }
 
   /* ---------- go ---------- */
-  if(ENTRY){ renderEntry(); }
+  if(ENTRY){
+    renderEntry();
+    if(MG_API && Pts.roundsIn(points) === 0) grab();   /* a fresh phone fills itself */
+  }
   else{
     renderBoard();
     window.addEventListener("resize", function(){ renderBoard(); });
