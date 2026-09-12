@@ -208,6 +208,10 @@
   var MG_API = "https://script.google.com/macros/s/AKfycbw756Fq3M4FB9zbR7FWhQiKMozAgSD2W6RjkImAC_4jg7x7l9ykjTzh4ZWUDZcNtbS_/exec";
   var EVERY = 20000, STALE = 120000;
 
+  var q = new URLSearchParams(location.search);
+  if (q.get("api")) MG_API = q.get("api");
+  var ENTRY = q.get("enter") === "1";
+
   /* The board rotates. Kyle, 2026-09-12, standing in front of the club TV:
      the match scores were too small to read across the room. Type size is
      bounded by row height and row height is the screen divided by the rows on
@@ -226,10 +230,6 @@
     if(!secsLocked && localStorage.getItem("vtp_secs")) SECS = Pts.secs(localStorage.getItem("vtp_secs"));
   }catch(e){}
   var page = 0, lastPosted = "", pageTimer = null;
-
-  var q = new URLSearchParams(location.search);
-  if (q.get("api")) MG_API = q.get("api");
-  var ENTRY = q.get("enter") === "1";
 
   var round0 = 0;
   var points = load();
