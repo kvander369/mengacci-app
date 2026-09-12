@@ -284,15 +284,21 @@
     var root = document.documentElement;
     root.style.setProperty("--k", "1");
     if(window.innerWidth < 900) return;      /* a phone scrolls, as it should */
-    var avail = cols.clientHeight;
-    function tallest(){
-      var t = 0;
-      [].forEach.call(cols.children, function(c){ t = Math.max(t, c.getBoundingClientRect().height); });
-      return t;
+    /* Measure against the bottom of the screen, not the container's own box:
+       clientHeight includes padding, and believing it left the last team two
+       pixels off the bottom of the TV. SAFE also buys a little room for a
+       television that overscans. */
+    var SAFE = 10;
+    var top = cols.getBoundingClientRect().top;
+    var target = window.innerHeight - SAFE;
+    function lowest(){
+      var b = 0;
+      [].forEach.call(cols.children, function(c){ b = Math.max(b, c.getBoundingClientRect().bottom); });
+      return b;
     }
     var k = 1, guard = 0;
-    while(tallest() > avail && k > 0.45 && guard++ < 14){
-      k = Math.max(0.45, k * Math.min(0.985, avail / tallest()));
+    while(lowest() > target && k > 0.45 && guard++ < 16){
+      k = Math.max(0.45, k * Math.min(0.985, (target - top) / (lowest() - top)));
       root.style.setProperty("--k", String(k));
     }
   }
