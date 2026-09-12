@@ -203,7 +203,11 @@
     ["Kyle Vanderlick","Bob Marages"]
   ];
 
-  var TITLE = "Vander-Total-Points Pot";
+  /* The title is Kyle's to type. He runs this pool at every club event and
+     the name is not the code's business. 2026-09-12: "The title should say ...
+     Do i get to change that myself?" — yes. */
+  var TITLE_DEFAULT = "Vander-Total-Points Pot";
+  var TITLESTORE = "vtp_title";
   /* The pot is run at every club event, so the event name is data, not code.
      Kyle types it once on the entry screen; it rides along to the TV. */
   var EVENT_DEFAULT = "3-Day Member Guest";
@@ -307,7 +311,7 @@
           onclick:function(){ location.href = ENTRY ? "./" : "./?enter=1"; }}),
         h("div",{},[
           h("div",{class:"eyebrow",text:"Country Club of Waterbury"}),
-          h("h1",{text:TITLE}),
+          h("h1",{text:getTitle()}),
           h("div",{class:"event",text:getEvent()})
         ])
       ]),
@@ -473,7 +477,10 @@
     });
 
     var setup = h("div",{class:"setup"},[
-      h("label",{text:"Event name — shows on the board"}),
+      h("label",{text:"Board title — the big line on the TV"}),
+      h("input",{type:"text",value:getTitle(),
+        onchange:function(){ setTitle(this.value); document.title = getTitle(); renderEntry(); }}),
+      h("label",{text:"Event name — shows on the board",style:"margin-top:12px"}),
       h("input",{type:"text",value:getEvent(),
         onchange:function(){ setEvent(this.value); renderEntry(); }}),
       h("label",{text:"TV key — type once, stays on this phone",style:"margin-top:12px"}),
@@ -592,6 +599,8 @@
   function setStep(v){ try{ localStorage.setItem(STEPSTORE, String(Pts.step(v))); }catch(e){} }
   function getMax(){ try{ return Pts.max(localStorage.getItem(MAXSTORE)); }catch(e){ return Pts.MAX; } }
   function setMax(v){ try{ localStorage.setItem(MAXSTORE, String(Pts.max(v))); }catch(e){} }
+  function getTitle(){ try{ return localStorage.getItem(TITLESTORE) || TITLE_DEFAULT; }catch(e){ return TITLE_DEFAULT; } }
+  function setTitle(v){ try{ localStorage.setItem(TITLESTORE, String(v).trim() || TITLE_DEFAULT); }catch(e){} }
   function getEvent(){ try{ return localStorage.getItem(EVSTORE) || EVENT_DEFAULT; }catch(e){ return EVENT_DEFAULT; } }
   function setEvent(v){ try{ localStorage.setItem(EVSTORE, v.trim() || EVENT_DEFAULT); }catch(e){} }
   function getKey(){ try{ return localStorage.getItem(KEYSTORE)||""; }catch(e){ return ""; } }
@@ -606,7 +615,7 @@
       method:"POST", redirect:"follow",
       headers:{"Content-Type":"text/plain;charset=utf-8"},
       body: JSON.stringify({ key:getKey(), board:"vtp", round:{
-        format:"vtp-live-v1", title:TITLE, event:getEvent(), posted:new Date().toISOString(),
+        format:"vtp-live-v1", title:getTitle(), event:getEvent(), posted:new Date().toISOString(),
         rows:getRows(), secs:getSecs(),
         teams:TEAMS, points:points
       }})
@@ -625,6 +634,7 @@
         if(j && j.format === "vtp-live-v1" && Array.isArray(j.points)){
           points = j.points;
           if(j.event) setEvent(j.event);
+          if(j.title) setTitle(j.title);
           lastOK = Date.now();
           /* the phone decides how the board rotates; an address overrides it */
           var changed = false;
