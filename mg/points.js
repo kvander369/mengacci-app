@@ -43,6 +43,22 @@
     for (var i = 0; i <= n; i++) a.push(Math.round(i * s * 100) / 100);
     return a;
   }
+  /* How the board rotates. Kyle, 2026-09-12: "next version of app, make that
+     a setting I can do" — a setting he can only reach by typing ?secs=15 on a
+     Fire TV remote is not a setting he has. Validated here so the phone, the
+     board and the gate all agree what a legal value is. */
+  var ROWS_DEFAULT = 9, SECS_DEFAULT = 10;
+  var ROWS_CHOICES = [6, 9, 13, 25];
+  var SECS_CHOICES = [5, 10, 15, 20, 30];
+  function rows(v) {
+    v = parseInt(v, 10);
+    return (v >= 4 && v <= 25) ? v : ROWS_DEFAULT;
+  }
+  function secs(v) {
+    v = parseInt(v, 10);
+    return (v >= 3 && v <= 120) ? v : SECS_DEFAULT;
+  }
+
   function onScale(v, s, m) {
     if (v === null || v === undefined || v === '' || typeof v === 'boolean') return false;
     s = step(s);
@@ -147,6 +163,8 @@
   var API = {
     ROUNDS: ROUNDS, SUNDAY: SUNDAY, STEPS: STEPS, STEP: STEP, MAX: MAX,
     step: step, max: max, scale: scale, onScale: onScale,
+    ROWS_DEFAULT: ROWS_DEFAULT, SECS_DEFAULT: SECS_DEFAULT,
+    ROWS_CHOICES: ROWS_CHOICES, SECS_CHOICES: SECS_CHOICES, rows: rows, secs: secs,
     teamName: teamName, standings: standings, roundsIn: roundsIn,
     entered: entered, leaders: leaders
   };

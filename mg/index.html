@@ -176,6 +176,7 @@
   var EVENT_DEFAULT = "3-Day Member Guest";
   var EVSTORE = "vtp_event";
   var STEPSTORE = "vtp_step", MAXSTORE = "vtp_max";
+  var ROWSTORE = "vtp_rows", SECSTORE = "vtp_secs";
   var STORE = "vtp_2026";           /* its own key. The Mengacci app's round is
                                        stored under a different one and this page
                                        never reads or writes it. */
@@ -194,10 +195,17 @@
      time. Nine at a time over three pages is about 45% bigger type than 25 at
      once, and a 30-second cycle is a short wait to see your own team.
      ?rows=25 puts them all back on one page; ?secs=n changes the dwell. */
-  var ROWS = 9, SECS = 10;
-  if (/^\d+$/.test(q.get("rows") || "")) ROWS = Math.max(4, Math.min(25, +q.get("rows")));
-  if (/^\d+$/.test(q.get("secs") || "")) SECS = Math.max(3, Math.min(120, +q.get("secs")));
-  var page = 0, lastPosted = "";
+  var ROWS = Pts.ROWS_DEFAULT, SECS = Pts.SECS_DEFAULT;
+  /* An address still wins, for a seat testing a size without touching Kyle's
+     phone, and it locks out whatever arrives from the channel. */
+  var rowsLocked = /^\d+$/.test(q.get("rows") || ""), secsLocked = /^\d+$/.test(q.get("secs") || "");
+  if (rowsLocked) ROWS = Pts.rows(q.get("rows"));
+  if (secsLocked) SECS = Pts.secs(q.get("secs"));
+  try{
+    if(!rowsLocked && localStorage.getItem("vtp_rows")) ROWS = Pts.rows(localStorage.getItem("vtp_rows"));
+    if(!secsLocked && localStorage.getItem("vtp_secs")) SECS = Pts.secs(localStorage.getItem("vtp_secs"));
+  }catch(e){}
+  var page = 0, lastPosted = "", pageTimer = null;
 
   var q = new URLSearchParams(location.search);
   if (q.get("api")) MG_API = q.get("api");
@@ -428,7 +436,15 @@
       h("label",{text:"Points scale — from the event rules sheet",style:"margin-top:12px"}),
       stepButtons(),
       h("input",{type:"number",inputmode:"numeric",value:String(getMax()),
-        onchange:function(){ setMax(this.value); renderEntry(); }})
+        onchange:function(){ setMax(this.value); renderEntry(); }}),
+      h("label",{text:"TV board — teams on screen at once",style:"margin-top:12px"}),
+      choiceButtons(Pts.ROWS_CHOICES, getRows(), function(v){ setRows(v); renderEntry(); },
+        function(v){ return v >= TEAMS.length ? "all" : String(v); }),
+      h("label",{text:"TV board — seconds a page",style:"margin-top:12px"}),
+      choiceButtons(Pts.SECS_CHOICES, getSecs(), function(v){ setSecs(v); renderEntry(); },
+        function(v){ return String(v); }),
+      h("div",{class:"note",style:"padding:8px 0 0",
+        text:"These reach the club screen the next time you Send to TV."})
     ]);
     pad.appendChild(setup);
     pad.appendChild(h("div",{class:"note",text:"Tap a team to set its points. Saved on this phone straight away; Send to TV puts them on the club screen."}));
@@ -469,6 +485,16 @@
       .catch(function(e){ flash("Could not reach the TV: " + e.message); });
   }
   function show(v){ return v === null ? "–" : (v === Math.round(v) ? String(v) : v.toFixed(1)); }
+
+  /* one row of choices, the current one filled in */
+  function choiceButtons(choices, current, pick, label){
+    var box = h("div",{class:"steps"});
+    choices.forEach(function(v){
+      box.appendChild(h("button",{class:(v === current ? "on" : ""), text:label(v),
+        onclick:function(){ pick(v); }}));
+    });
+    return box;
+  }
 
   function stepButtons(){
     var box = h("div",{class:"steps"});
@@ -512,6 +538,10 @@
     if(btn){ btn.textContent = show(points[i][round0]); btn.className = "val" + (points[i][round0]===null?" empty":""); }
     var c = document.getElementById("count"); if(c) c.textContent = count();
   }
+  function getRows(){ try{ return Pts.rows(localStorage.getItem(ROWSTORE)); }catch(e){ return Pts.ROWS_DEFAULT; } }
+  function setRows(v){ try{ localStorage.setItem(ROWSTORE, String(Pts.rows(v))); }catch(e){} }
+  function getSecs(){ try{ return Pts.secs(localStorage.getItem(SECSTORE)); }catch(e){ return Pts.SECS_DEFAULT; } }
+  function setSecs(v){ try{ localStorage.setItem(SECSTORE, String(Pts.secs(v))); }catch(e){} }
   function getStep(){ try{ return Pts.step(localStorage.getItem(STEPSTORE)); }catch(e){ return Pts.STEP; } }
   function setStep(v){ try{ localStorage.setItem(STEPSTORE, String(Pts.step(v))); }catch(e){} }
   function getMax(){ try{ return Pts.max(localStorage.getItem(MAXSTORE)); }catch(e){ return Pts.MAX; } }
@@ -531,6 +561,7 @@
       headers:{"Content-Type":"text/plain;charset=utf-8"},
       body: JSON.stringify({ key:getKey(), board:"vtp", round:{
         format:"vtp-live-v1", title:TITLE, event:getEvent(), posted:new Date().toISOString(),
+        rows:getRows(), secs:getSecs(),
         teams:TEAMS, points:points
       }})
     }).then(function(r){ return r.json(); })
@@ -549,12 +580,26 @@
           points = j.points;
           if(j.event) setEvent(j.event);
           lastOK = Date.now();
+          /* the phone decides how the board rotates; an address overrides it */
+          var changed = false;
+          if(!rowsLocked && j.rows && Pts.rows(j.rows) !== ROWS){ ROWS = Pts.rows(j.rows); changed = true; }
+          if(!secsLocked && j.secs && Pts.secs(j.secs) !== SECS){ SECS = Pts.secs(j.secs); changed = true; }
+          if(changed) arm();
           /* only repaint when the scores actually changed, or every poll would
              restart the page turn and the board would never advance */
-          if(j.posted !== lastPosted){ lastPosted = j.posted || ""; page = 0; renderBoard(); }
+          if(changed || j.posted !== lastPosted){ lastPosted = j.posted || ""; page = 0; renderBoard(); }
         } else if(j && j.empty && !lastPosted){ renderBoard(); }
       })
       .catch(function(){ everFetched = true; });
+  }
+
+  /* Re-armed whenever the phone changes the rotation, so a new setting takes
+     effect on the next send rather than on the next reload. */
+  function arm(){
+    if(pageTimer){ clearInterval(pageTimer); pageTimer = null; }
+    if(Math.ceil(TEAMS.length / ROWS) > 1){
+      pageTimer = setInterval(function(){ page++; renderBoard(); }, SECS * 1000);
+    }
   }
 
   /* ---------- keep the television awake ----------
@@ -618,10 +663,7 @@
     renderBoard();
     keepAwake();
     window.addEventListener("resize", function(){ renderBoard(); });
-    /* turn the page */
-    if(Math.ceil(TEAMS.length / ROWS) > 1){
-      setInterval(function(){ page++; renderBoard(); }, SECS * 1000);
-    }
+    arm();
     /* Measure again once the web font has actually arrived. Barlow Condensed
        loads after the first paint and the rows grow when it lands, which is
        what pushed the last teams off the bottom of the club TV on
