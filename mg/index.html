@@ -45,7 +45,7 @@
 
   .cols{flex:1;min-height:0;padding:6px 44px 10px;display:grid;grid-template-columns:1fr;align-items:start;overflow:hidden}
   .col{min-width:0}
-  tr.pad td{border-bottom:0}
+  tr.blankrow td{border-bottom:0;background:transparent;padding:0}
 
   /* how long until the page turns */
   .prog{flex:none;height:8px;background:var(--green-soft);overflow:hidden}
@@ -426,7 +426,15 @@
       h("th",{text:"Tot"}), h("th",{text:"Sun"})
     ]);
     var body = part.map(function(r){
-      if(!r) return h("tr",{class:"pad"},[h("td",{class:"team",text:"\u00a0"})]);
+      /* A filler row keeps the last page the same height as the others so the
+         type does not jump between pages. It carries the same nine cells,
+         because one cell in a nine-column table shifts the columns, and it has
+         its own class: "pad" is already the entry screen's scrolling area, so
+         this row was inheriting that background and showing as a grey block. */
+      if(!r) return h("tr",{class:"blankrow"},[
+        h("td",{}),h("td",{}),h("td",{}),h("td",{}),h("td",{}),
+        h("td",{}),h("td",{}),h("td",{}),h("td",{})
+      ]);
       var cells = [
         h("td",{class:"pos",text:String(r.rank)}),
         h("td",{class:"team",text:r.name})
