@@ -16,6 +16,7 @@
     --bg:#E9EFE8; --panel:#FBFCFA; --ink:#16241C; --muted:#5C6B61; --line:#CBD6CD;
     --green:#1E5A3C; --green-ink:#F4F8F4; --green-soft:#DCEADF;
     --gold:#A8781F; --gold-soft:#F5EBD3;
+    --k:1;                     /* the board shrinks to the screen: see fit() */
   }
   *{box-sizing:border-box}
   html,body{height:100%}
@@ -47,14 +48,14 @@
   .col+.col{border-left:5px solid var(--green-soft);padding-left:40px}
 
   table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
-  th{font-family:"Barlow Condensed",sans-serif;font-weight:600;letter-spacing:.08em;text-transform:uppercase;font-size:17px;color:var(--muted);text-align:right;padding:4px 5px;border-bottom:2px solid var(--line)}
+  th{font-family:"Barlow Condensed",sans-serif;font-weight:600;letter-spacing:.08em;text-transform:uppercase;font-size:calc(17px * var(--k));color:var(--muted);text-align:right;padding:4px 5px;border-bottom:2px solid var(--line)}
   th.l{text-align:left}
-  td{padding:3px 5px;border-bottom:1px solid var(--line);white-space:nowrap}
-  td.pos{font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:22px;color:var(--muted);text-align:right;width:44px}
-  td.team{font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:27px;overflow:hidden;text-overflow:ellipsis;max-width:0;width:99%}
-  td.r{font-family:"Barlow Condensed",sans-serif;font-weight:500;font-size:20px;color:var(--muted);text-align:right;width:42px}
-  td.tot{font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:30px;text-align:right;width:64px}
-  td.sn{font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:24px;text-align:right;width:56px;color:var(--gold)}
+  td{padding:calc(3px * var(--k)) 5px;border-bottom:1px solid var(--line);white-space:nowrap}
+  td.pos{font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:calc(22px * var(--k));color:var(--muted);text-align:right;width:44px}
+  td.team{font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:calc(27px * var(--k));overflow:hidden;text-overflow:ellipsis;max-width:0;width:99%}
+  td.r{font-family:"Barlow Condensed",sans-serif;font-weight:500;font-size:calc(20px * var(--k));color:var(--muted);text-align:right;width:42px}
+  td.tot{font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:calc(30px * var(--k));text-align:right;width:64px}
+  td.sn{font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:calc(24px * var(--k));text-align:right;width:56px;color:var(--gold)}
   tr.lead td{background:var(--green-soft)}
   tr.lead td.pos,tr.lead td.tot{color:var(--green)}
   tr.sunlead td.sn{background:var(--gold-soft);font-weight:700}
@@ -280,12 +281,19 @@
      team that is not on the board. Shrink until all 25 fit. Only on a big
      screen: a phone scrolls, which is what a phone should do. */
   function fit(cols){
-    if(window.innerWidth < 900) return;
-    cols.style.zoom = "";
+    var root = document.documentElement;
+    root.style.setProperty("--k", "1");
+    if(window.innerWidth < 900) return;      /* a phone scrolls, as it should */
+    var avail = cols.clientHeight;
+    function tallest(){
+      var t = 0;
+      [].forEach.call(cols.children, function(c){ t = Math.max(t, c.getBoundingClientRect().height); });
+      return t;
+    }
     var k = 1, guard = 0;
-    while(cols.scrollHeight > cols.clientHeight + 1 && k > 0.5 && guard++ < 12){
-      k = Math.max(0.5, k * Math.min(0.99, (cols.clientHeight / cols.scrollHeight)));
-      cols.style.zoom = k;
+    while(tallest() > avail && k > 0.45 && guard++ < 14){
+      k = Math.max(0.45, k * Math.min(0.985, avail / tallest()));
+      root.style.setProperty("--k", String(k));
     }
   }
 
