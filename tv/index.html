@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#1E5A3C">
 <title>Mengacci $$ — live board</title>
-<link rel="icon" href="../icon-192.png">
+<link rel="icon" href="ccw-logo.png">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap">
 <style>
   /* The board on the club TV. Read from across a room: one type scale, no
@@ -16,6 +16,7 @@
     --bg:#E9EFE8; --panel:#FBFCFA; --ink:#16241C; --muted:#5C6B61; --line:#CBD6CD;
     --green:#1E5A3C; --green-ink:#F4F8F4; --green-soft:#DCEADF;
     --gold:#A8781F; --gold-soft:#F5EBD3;
+    --k:1;          /* the board shrinks to the screen it is on: see fit() */
   }
   *{box-sizing:border-box}
   html,body{height:100%}
@@ -28,6 +29,7 @@
   .tophead{display:flex;align-items:center;gap:22px;min-width:0}
   .logo{width:84px;height:84px;flex:none;object-fit:contain;background:var(--green-ink);border-radius:50%;padding:5px}
   .eyebrow{font-family:"Barlow Condensed",sans-serif;font-weight:600;letter-spacing:.12em;text-transform:uppercase;font-size:20px;opacity:.85}
+  .event{font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:26px;opacity:.9;margin-top:1px}
   .top h1{font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:40px;margin:2px 0 0;line-height:1}
   .top .right{font-family:"Barlow Condensed",sans-serif;font-size:19px;font-weight:600;text-align:right;opacity:.9;white-space:nowrap}
   .top .right .warn{color:var(--gold-soft)}
@@ -36,26 +38,35 @@
   .grid{display:grid;grid-template-columns:3fr 2fr;gap:0 48px;align-items:start}
   .col{display:flex;flex-direction:column;gap:12px;min-width:0}
   .col+.col{border-left:6px solid var(--green);padding-left:40px}
-  .sect{font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:32px;line-height:1.1;color:var(--ink);padding-top:6px}
+  .sect{font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:calc(32px * var(--k));line-height:1.1;color:var(--ink);padding-top:6px}
   .secthead{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
   .muted{color:var(--muted)}
   .pill{font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:18px;padding:4px 9px;border-radius:999px;white-space:nowrap}
   .pill.pend{background:var(--gold-soft);color:var(--gold)}
   .pill.team{background:transparent;border:1px solid var(--line);color:var(--muted)}
 
-  table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
-  th{font-family:"Barlow Condensed",sans-serif;font-weight:600;letter-spacing:.06em;text-transform:uppercase;font-size:20px;color:var(--muted);text-align:left;padding:8px 6px;border-bottom:1px solid var(--line)}
+  /* Widths are shares of the column they sit in and they add to 100, never
+     fixed pixels. A pixel width wider than the screen leaves another column
+     with nothing — on the points pot board that erased every team name, on a
+     phone and on the club television alike (2026-09-12). */
+  table{width:100%;table-layout:fixed;border-collapse:collapse;font-variant-numeric:tabular-nums}
+  col.c-rank{width:8%} col.c-team{width:52%} col.c-par{width:22%} col.c-net{width:18%}
+  col.c-hole{width:16%} col.c-who{width:58%} col.c-score{width:26%}
+  th{font-family:"Barlow Condensed",sans-serif;font-weight:600;letter-spacing:.06em;text-transform:uppercase;font-size:calc(20px * var(--k));color:var(--muted);text-align:left;padding:calc(8px * var(--k)) 6px;border-bottom:1px solid var(--line)}
   th.r{text-align:right}
-  td{padding:4px 6px;border-bottom:1px solid var(--line);vertical-align:middle}
-  td.n{text-align:right;font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:20px}
-  td.hn{font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:20px;width:40px;color:var(--muted)}
-  td.team{font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:26px}
-  td.topar{font-size:30px;color:var(--green)}
-  td.who{font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:26px;padding-left:28px}
+  td{padding:calc(4px * var(--k)) 6px;border-bottom:1px solid var(--line);vertical-align:middle;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  td.n{text-align:right;font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:calc(30px * var(--k))}
+  td.hn{font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:calc(28px * var(--k));color:var(--muted)}
+  td.team{font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:calc(40px * var(--k))}
+  td.topar{font-size:calc(46px * var(--k));color:var(--green);font-weight:700}
+  td.who{font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:calc(34px * var(--k));padding-left:calc(16px * var(--k))}
+  tr.lead td{background:var(--green-soft)}
+  tr.lead td.topar,tr.lead td.hn{color:var(--green)}
+  tr.blankrow td{border-bottom:0;background:transparent;padding:0}
   tr.skin td{background:var(--green-soft)}
   tr.skin td.who{color:var(--green)}
-  tr.skin td.hn{width:60px;font-size:24px;color:var(--ink)}
-  tr.skin td.n{font-size:26px}
+  tr.skin td.hn{font-size:calc(32px * var(--k));color:var(--ink)}
+  tr.skin td.n{font-size:calc(34px * var(--k))}
 
   /* the only screen that is not the board: nothing has arrived yet */
   .blank{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;text-align:center;padding:40px}
@@ -95,10 +106,20 @@
   var TV_API = "https://script.google.com/macros/s/AKfycbw756Fq3M4FB9zbR7FWhQiKMozAgSD2W6RjkImAC_4jg7x7l9ykjTzh4ZWUDZcNtbS_/exec";
 
   var EVERY = 20000;          /* poll, in ms */
+
+  /* The tournament list rotates. Twenty-five teams on one screen forces the
+     type down until nobody across the room can read it — Kyle, 2026-09-12:
+     "All the fonts are very small now". Type size is bounded by row height and
+     row height is the screen divided by the rows on it, so the only way to
+     make it bigger is to show fewer at a time. ?rows= and ?secs= override. */
+  var TROWS = 13, TSECS = 10;
+  var tpage = 0, ttimer = null;
   var STALE = 90000;          /* older than this and the top corner says so */
 
   var q = new URLSearchParams(location.search);
   if (q.get("api")) TV_API = q.get("api");
+  if (/^\d+$/.test(q.get("rows") || "")) TROWS = Math.max(4, Math.min(40, +q.get("rows")));
+  if (/^\d+$/.test(q.get("secs") || "")) TSECS = Math.max(3, Math.min(120, +q.get("secs")));
 
   var LIVE = null;            /* last good payload */
   var lastOK = 0;             /* when it arrived, ms */
@@ -140,6 +161,30 @@
   }
 
   /* ---------- the board ---------- */
+  /* Shrink until the board fits the screen it is on. A row below the bottom
+     edge is a team that is not on the board, and the board looks perfectly
+     healthy doing it. SAFE keeps 3% clear because a television crops the edge
+     of its picture. Everything here was learned on the points pot board on
+     2026-09-12 with Kyle standing in front of the club TV. */
+  function fit(box){
+    var root = document.documentElement;
+    root.style.setProperty("--k", "1");
+    if (window.innerWidth < 900) return;          /* a phone scrolls, as it should */
+    var SAFE = Math.max(18, Math.round(window.innerHeight * 0.03));
+    var top = box.getBoundingClientRect().top;
+    var target = window.innerHeight - SAFE;
+    function lowest(){
+      var b = 0;
+      [].forEach.call(box.children, function(c){ b = Math.max(b, c.getBoundingClientRect().bottom); });
+      return b;
+    }
+    var k = 1, guard = 0;
+    while (lowest() > target && k > 0.4 && guard++ < 16){
+      k = Math.max(0.4, k * Math.min(0.985, (target - top) / (lowest() - top)));
+      root.style.setProperty("--k", String(k));
+    }
+  }
+
   function render(){
     var s = document.getElementById("screen");
     s.textContent = "";
@@ -164,21 +209,45 @@
                 : status === "final" ? "FINAL · all " + teamsTotal + " teams reported"
                 : "TENTATIVE · " + teamsIn + " of " + teamsTotal + " teams reported";
 
-    /* left: the tournament */
-    var tt = h("table",{},[h("tr",{},[h("th",{text:""}),h("th",{text:"Team"}),h("th",{text:"To par",class:"r"}),h("th",{text:"Net",class:"r"})])]);
-    st.done.forEach(function(x, i){
-      tt.appendChild(h("tr",{},[
-        h("td",{class:"hn",text:String(i+1)}),
-        h("td",{class:"team",text:x.team.players.map(first).join(" & ")}),
-        h("td",{class:"n topar",text:Sc.toPar(x.total)}),
-        h("td",{class:"n muted",text:String(x.total)})
-      ]));
-    });
-    st.waiting.forEach(function(t){
-      tt.appendChild(h("tr",{},[
-        h("td",{class:"hn",text:""}),
-        h("td",{class:"team muted",text:t.players.map(first).join(" & ")}),
-        h("td",{colspan:"2"},[h("span",{class:"pill team",text:"Scores not in yet"})])
+    /* left: the tournament, one page at a time */
+    var group = h("colgroup",{},[
+      h("col",{class:"c-rank"}), h("col",{class:"c-team"}),
+      h("col",{class:"c-par"}), h("col",{class:"c-net"})
+    ]);
+    var tt = h("table",{},[group, h("tr",{},[h("th",{text:""}),h("th",{text:"Team"}),h("th",{text:"To par",class:"r"}),h("th",{text:"Net total",class:"r"})])]);
+
+    /* Everyone on the leader's exact net total is tied for first and shaded,
+       the same green the points pot board uses. They are still listed in the
+       order the match of cards decided, because that is what settles the money
+       — but the board must not pretend a dead heat is a gap. */
+    var best = st.done.length ? st.done[0].total : null;
+    var rows = st.done.map(function(x, i){
+      return { kind:"done", i:i, x:x, lead:(x.total === best) };
+    }).concat(st.waiting.map(function(t){ return { kind:"waiting", t:t }; }));
+
+    var pages = Math.max(1, Math.ceil(rows.length / TROWS));
+    if (tpage >= pages) tpage = 0;
+    var part = rows.slice(tpage * TROWS, tpage * TROWS + TROWS);
+    while (part.length < TROWS && pages > 1) part.push(null);
+
+    part.forEach(function(r){
+      if (!r){
+        tt.appendChild(h("tr",{class:"blankrow"},[h("td",{}),h("td",{}),h("td",{}),h("td",{})]));
+        return;
+      }
+      if (r.kind === "waiting"){
+        tt.appendChild(h("tr",{},[
+          h("td",{class:"hn",text:""}),
+          h("td",{class:"team muted",text:r.t.players.map(first).join(" & ")}),
+          h("td",{colspan:"2"},[h("span",{class:"pill team",text:"Scores not in yet"})])
+        ]));
+        return;
+      }
+      tt.appendChild(h("tr",{class:(r.lead ? "lead" : "")},[
+        h("td",{class:"hn",text:String(r.i+1)}),
+        h("td",{class:"team",text:r.x.team.players.map(first).join(" & ")}),
+        h("td",{class:"n topar",text:Sc.toPar(r.x.total)}),
+        h("td",{class:"n muted",text:String(r.x.total)})
       ]));
     });
 
@@ -186,7 +255,7 @@
     var players = ids.map(function(pid){ return by[pid]; });
     var pots = Sc.pots(players, LIVE.cutoff == null ? null : LIVE.cutoff);
     function potBlock(members, useGross, label){
-      var t = h("table",{},[h("tr",{},[h("th",{text:"Hole"}),h("th",{text:"Skin"}),h("th",{text:useGross?"Gross":"Net",class:"r"})])]);
+      var t = h("table",{},[h("tr",{},[h("th",{text:"Hole"}),h("th",{text:"Skin"}),h("th",{text:useGross?"Gross score":"Net score",class:"r"})])]);
       var n = 0;
       Sc.skins(members, useGross).forEach(function(r){
         if (r.kind !== "skin") return;
@@ -208,17 +277,36 @@
           .concat(potBlock(pots.net, false, "Net skins · hcp over " + LIVE.cutoff));
 
     s.appendChild(head(eyebrow, (LIVE.event && LIVE.event.name) || "Mengacci $$"));
-    s.appendChild(h("div",{class:"scroll"},[
-      h("div",{class:"grid"},[
-        h("div",{class:"col"},[h("div",{class:"sect",text:"Tournament · 2-man best ball net"}), tt]),
-        h("div",{class:"col"}, blocks)
-      ])
-    ]));
+    var grid = h("div",{class:"grid"},[
+      h("div",{class:"col"},[
+        h("div",{class:"sect secthead"},[
+          h("span",{text:"Tournament · 2-man best ball net"}),
+          pages > 1 ? h("span",{class:"pill team",text:(tpage+1) + " of " + pages}) : null
+        ]),
+        tt]),
+      h("div",{class:"col"}, blocks)
+    ]);
+    s.appendChild(h("div",{class:"scroll"},[grid]));
+    fit(grid);
   }
 
   /* Top right: when the PHONE last sent, not when this page last asked. If our
      own polling has gone quiet for a minute and a half, say so in gold rather
      than let a frozen board look live. */
+  /* The date, spelled out. Kyle, 2026-09-12: "We should have the date up there
+     somewhere too." It comes from the round the phone posted, so a board left
+     running overnight cannot claim to be today's. */
+  function eventDate(){
+    var raw = LIVE && LIVE.event && LIVE.event.date;
+    if (!raw) return "";
+    var d = new Date(String(raw) + (String(raw).length === 10 ? "T12:00:00" : ""));
+    if (isNaN(d)) return String(raw);
+    var days = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+    var mons = ["January","February","March","April","May","June","July",
+                "August","September","October","November","December"];
+    return days[d.getDay()] + ", " + mons[d.getMonth()] + " " + d.getDate() + ", " + d.getFullYear();
+  }
+
   function head(eyebrow, title){
     var age = lastOK ? Date.now() - lastOK : 0;
     var sent = LIVE && (LIVE.received || LIVE.posted) ? clock(Date.parse(LIVE.received || LIVE.posted)) : null;
@@ -227,8 +315,13 @@
       : h("div",{class:"right",text: sent ? "scores as of "+sent : "updated "+clock(lastOK)});
     return h("div",{class:"top"},[
       h("div",{class:"tophead"},[
-        h("img",{class:"logo",src:"../icon-192.png",alt:""}),
-        h("div",{},[h("div",{class:"eyebrow",text:eyebrow}), h("h1",{text:title})])
+        h("img",{class:"logo",src:"ccw-logo.png",alt:"Country Club of Waterbury",
+          style:"cursor:pointer",onclick:function(){ location.href = "../"; }}),
+        h("div",{},[
+          h("div",{class:"eyebrow",text:eyebrow}),
+          h("h1",{text:title}),
+          h("div",{class:"event",text:eventDate()})
+        ])
       ]),
       right
     ]);
@@ -251,6 +344,21 @@
   render();
   poll();
   setInterval(poll, EVERY);
+  /* turn the page */
+  function armPages(){
+    if (ttimer) clearInterval(ttimer);
+    ttimer = setInterval(function(){ tpage++; render(); }, TSECS * 1000);
+  }
+  armPages();
+  /* Measure again once the web font has arrived: Barlow Condensed lands after
+     the first paint and every row grows when it does, so the first measurement
+     is of a page that no longer exists. This, not the obvious suspects, is what
+     cut rows off the club TV. The timers cover a browser without document.fonts,
+     and resize covers a television that changes mode. */
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(function(){ render(); });
+  setTimeout(render, 600);
+  setTimeout(render, 2500);
+  window.addEventListener("resize", function(){ render(); });
 })();
 </script>
 </body>
