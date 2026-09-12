@@ -133,11 +133,31 @@
 </head>
 <body>
 <div class="screen" id="screen"></div>
-<script src="points.js"></script>
+<script src="points.js?v=e78b983f02"></script>
 <script>
 (function(){
   "use strict";
-  var Pts = window.Points;
+  var Pts = window.Points || {};
+
+  /* A cached points.js is the one way this page can white-screen: index.html
+     updates, the browser keeps yesterday's rules file, and the first call to
+     something new throws before anything is drawn. Kyle, 2026-09-12: "my
+     desktop icon is now broke / shows white screen". deploy.js now stamps the
+     script tag with a hash so that cannot happen again, and these fallbacks
+     mean that even if it does, the board draws. */
+  if(!Pts.rows) Pts.rows = function(v){ v = parseInt(v,10); return (v>=4&&v<=25)?v:9; };
+  if(!Pts.secs) Pts.secs = function(v){ v = parseInt(v,10); return (v>=3&&v<=120)?v:10; };
+  if(!Pts.ROWS_DEFAULT) Pts.ROWS_DEFAULT = 9;
+  if(!Pts.SECS_DEFAULT) Pts.SECS_DEFAULT = 10;
+  if(!Pts.ROWS_CHOICES) Pts.ROWS_CHOICES = [6,9,13,25];
+  if(!Pts.SECS_CHOICES) Pts.SECS_CHOICES = [5,10,15,20,30];
+  if(!Pts.step) Pts.step = function(){ return 0.5; };
+  if(!Pts.max) Pts.max = function(){ return 8; };
+  if(!Pts.scale) Pts.scale = function(st,mx){ st=Pts.step(st); mx=Pts.max(mx);
+    var a=[],n=Math.floor(mx/st+1e-9); for(var i=0;i<=n;i++) a.push(Math.round(i*st*100)/100); return a; };
+  if(!Pts.onScale) Pts.onScale = function(v,st,mx){ if(v===null||v===undefined||v==="") return false;
+    st=Pts.step(st); v=Number(v); if(!isFinite(v)||v<0||v>Pts.max(mx)) return false;
+    var u=v/st; return Math.abs(u-Math.round(u))<1e-9; };
 
   /* The 25 teams, as Kyle sent them 2026-09-12. Fixed for the weekend: there
      is no roster screen, because there is nothing to change. mg/teams.json is
