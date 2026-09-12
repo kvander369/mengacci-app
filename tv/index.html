@@ -34,8 +34,24 @@
   .top .right{font-family:"Barlow Condensed",sans-serif;font-size:19px;font-weight:600;text-align:right;opacity:.9;white-space:nowrap}
   .top .right .warn{color:var(--gold-soft)}
 
+  /* Said out loud, under the header, because a shaded row alone does not
+     explain why one of two equal numbers took the money. */
+  .cards{background:var(--gold-soft);color:var(--gold);flex:none;padding:8px 40px;
+    font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:30px;
+    display:flex;align-items:baseline;gap:16px;white-space:nowrap;overflow:hidden}
+  .cards .lab{text-transform:uppercase;letter-spacing:.12em;font-size:21px;opacity:.9}
+  .cards .who{color:#7A560F}
+  .cards .why{color:#8A6A2A;font-weight:600;font-size:22px;opacity:.9;overflow:hidden;text-overflow:ellipsis}
+
   .scroll{flex:1;min-height:0;padding:18px 40px 24px;overflow:hidden}
-  .grid{display:grid;grid-template-columns:3fr 2fr;gap:0 48px;align-items:start}
+  /* Equal halves. The tournament list rotates 13 at a time so it no longer
+     needs the lion's share, and the skins side was cramped enough to clip a
+     name. Kyle, 2026-09-12: "Maybe give more real estate to the skins side?" */
+  /* The team side takes a little back: it carries the longest text on the
+     board ("Guiditta & DeSaulniers"), while the skins side is one name and two
+     small numbers. Kyle, 2026-09-12: "Maybe get a bit more real estate back on
+     the team side in case we have long names there?" */
+  .grid{display:grid;grid-template-columns:1.35fr 1fr;gap:0 44px;align-items:start}
   .col{display:flex;flex-direction:column;gap:12px;min-width:0}
   .col+.col{border-left:6px solid var(--green);padding-left:40px}
   .sect{font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:calc(32px * var(--k));line-height:1.1;color:var(--ink);padding-top:6px}
@@ -51,7 +67,11 @@
      phone and on the club television alike (2026-09-12). */
   table{width:100%;table-layout:fixed;border-collapse:collapse;font-variant-numeric:tabular-nums}
   col.c-rank{width:8%} col.c-team{width:52%} col.c-par{width:22%} col.c-net{width:18%}
-  col.c-hole{width:16%} col.c-who{width:58%} col.c-score{width:26%}
+  /* The hole, the name and the score sat far apart because a short name left
+     a wide gap before a right-aligned score. Narrower name column, and the
+     score is centred in its own so it sits near the name rather than against
+     the far edge. */
+  col.c-hole{width:13%} col.c-who{width:55%} col.c-score{width:32%}
   th{font-family:"Barlow Condensed",sans-serif;font-weight:600;letter-spacing:.06em;text-transform:uppercase;font-size:calc(20px * var(--k));color:var(--muted);text-align:left;padding:calc(8px * var(--k)) 6px;border-bottom:1px solid var(--line)}
   th.r{text-align:right}
   td{padding:calc(4px * var(--k)) 6px;border-bottom:1px solid var(--line);vertical-align:middle;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -66,7 +86,7 @@
   tr.skin td{background:var(--green-soft)}
   tr.skin td.who{color:var(--green)}
   tr.skin td.hn{font-size:calc(32px * var(--k));color:var(--ink)}
-  tr.skin td.n{font-size:calc(34px * var(--k))}
+  tr.skin td.n{font-size:calc(34px * var(--k));text-align:center}
 
   /* the only screen that is not the board: nothing has arrived yet */
   .blank{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;text-align:center;padding:40px}
@@ -216,13 +236,15 @@
     ]);
     var tt = h("table",{},[group, h("tr",{},[h("th",{text:""}),h("th",{text:"Team"}),h("th",{text:"To par",class:"r"}),h("th",{text:"Net total",class:"r"})])]);
 
-    /* Everyone on the leader's exact net total is tied for first and shaded,
-       the same green the points pot board uses. They are still listed in the
-       order the match of cards decided, because that is what settles the money
-       — but the board must not pretend a dead heat is a gap. */
+    /* Only the winner is shaded. Kyle, 2026-09-12: "We should only shade the
+       winner. But somewhere prominent we need to say Won by USGA rules Match
+       of Cards." A tie on the total is settled by the match of cards and the
+       money goes to one team, so the green marks that team and the band below
+       the header says how it was decided. */
     var best = st.done.length ? st.done[0].total : null;
+    var tiedAtTop = st.done.filter(function(x){ return x.total === best; });
     var rows = st.done.map(function(x, i){
-      return { kind:"done", i:i, x:x, lead:(x.total === best) };
+      return { kind:"done", i:i, x:x, lead:(i === 0) };
     }).concat(st.waiting.map(function(t){ return { kind:"waiting", t:t }; }));
 
     var pages = Math.max(1, Math.ceil(rows.length / TROWS));
@@ -277,6 +299,32 @@
           .concat(potBlock(pots.net, false, "Net skins · hcp over " + LIVE.cutoff));
 
     s.appendChild(head(eyebrow, (LIVE.event && LIVE.event.name) || "Mengacci $$"));
+    if (tiedAtTop.length > 1){
+      /* Say exactly how it was decided, not just that it was. Kyle,
+         2026-09-12: "How about explaining even more how the match of cards was
+         ultimately decided in the banner?" scoring.js already records which
+         comparison broke it and both numbers; this puts them on the wall so
+         nobody has to take it on trust. */
+      var mine = st.done[0], other = tiedAtTop[1];
+      var m = Sc.matchOfCards(mine.bb, other.bb);
+      var WORD = { "back 9":"the back nine", "last 6":"the last six",
+                   "last 3":"the last three", "18th":"the 18th" };
+      var why;
+      if (m.how && WORD[m.how]) {
+        why = "level on " + best + " with " + other.team.players.map(first).join(" & ")
+            + " · won on " + WORD[m.how] + ", " + m.av + " to " + m.bv
+            + " · USGA match of cards";
+      } else {
+        /* identical through all 18: the rules run out and a person decides */
+        why = "level on " + best + " with " + other.team.players.map(first).join(" & ")
+            + " · cards identical through 18 · the match of cards cannot separate them";
+      }
+      s.appendChild(h("div",{class:"cards"},[
+        h("span",{class:"lab",text: (m.how && WORD[m.how]) ? "Match of cards" : "Still tied"}),
+        h("span",{class:"who",text: mine.team.players.map(first).join(" & ")}),
+        h("span",{class:"why",text: why})
+      ]));
+    }
     var grid = h("div",{class:"grid"},[
       h("div",{class:"col"},[
         h("div",{class:"sect secthead"},[
