@@ -42,6 +42,10 @@
   .cards .lab{text-transform:uppercase;letter-spacing:.12em;font-size:21px;opacity:.9}
   .cards .who{color:#7A560F}
   .cards .why{color:#8A6A2A;font-weight:600;font-size:22px;opacity:.9;overflow:hidden;text-overflow:ellipsis}
+  /* same height, nothing drawn: it exists only so the board is the same shape
+     with a tie and without one */
+  .cards.spacer{background:transparent;padding-top:8px;padding-bottom:8px}
+  .cards.spacer::before{content:" "}
 
   .scroll{flex:1;min-height:0;padding:18px 40px 24px;overflow:hidden}
   /* Equal halves. The tournament list rotates 13 at a time so it no longer
@@ -78,17 +82,22 @@
   th.r{text-align:right}
   th.c{text-align:center}
   td{padding:calc(4px * var(--k)) 6px;border-bottom:1px solid var(--line);vertical-align:middle;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  td.n{text-align:right;font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:calc(28px * var(--k))}
+  td.n{text-align:right;font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:calc(26px * var(--k))}
   td.hn{font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:calc(28px * var(--k));color:var(--muted)}
-  td.team{font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:calc(38px * var(--k))}
-  td.topar{font-size:calc(43px * var(--k));color:var(--green);font-weight:700}
+  td.team{font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:calc(35px * var(--k))}
+  td.topar{font-size:calc(40px * var(--k));color:var(--green);font-weight:700}
+  /* Under par is the green; over par is plain ink. A +6 in the same green as a
+     -18 reads as a good number at a glance, which is the one thing a board
+     must not do. */
+  td.topar.over{color:var(--ink)}
   /* A little air after the hole number — with none at all the name crowded it.
      Kyle, 2026-09-12. The header carries the same indent so they still line up. */
   td.who{font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:calc(32px * var(--k));padding-left:calc(22px * var(--k))}
   th.who{padding-left:calc(22px * var(--k))}
   tr.lead td{background:var(--green-soft)}
   tr.lead td.topar,tr.lead td.hn{color:var(--green)}
-  tr.blankrow td{border-bottom:0;background:transparent;padding:0}
+  tr.blankrow td{border-bottom:0;background:transparent}
+  tr.blankrow td.team::before{content:" "}
   tr.skin td{background:var(--green-soft)}
   tr.skin td.who{color:var(--green)}
   tr.skin td.hn{font-size:calc(29px * var(--k));color:var(--ink)}
@@ -223,7 +232,13 @@
        "So the fonts adjust size?" — they do, and now in both directions.
        The base sizes set the PROPORTIONS between the two halves; this decides
        how big the whole thing is on the screen in front of it. */
-    var lo = 0.4, hi = 2.2, k = 1, guard = 0;
+    /* A CEILING, not just a floor. Kyle approved the board at 0.78 and then
+       watched it grow to 0.84 when a tie band disappeared and freed 50px:
+       "Nope they got bigger again!!" Type that moves with the content is type
+       nobody can settle on, so this is the largest it is ever allowed to be.
+       The lever for bigger is fewer teams a page, which is Kyle's setting. */
+    var MAXK = 0.78;
+    var lo = 0.4, hi = MAXK, k = 1, guard = 0;
     function fits(v){
       root.style.setProperty("--k", String(v));
       return lowest() <= target;
@@ -276,8 +291,22 @@
        the header says how it was decided. */
     var best = st.done.length ? st.done[0].total : null;
     var tiedAtTop = st.done.filter(function(x){ return x.total === best; });
+
+    /* If the match of cards cannot separate them, the board must not pick one.
+       Kyle, 2026-09-12: "If you have inseparable from match of cards you are
+       greenlighting a winner and that's not good." So when nothing separates
+       the leaders, they all carry rank 1 and they are all shaded; the green
+       says "one of these", not "this one". The next team down is still 3,
+       because two of them are ahead of it. */
+    var inseparable = tiedAtTop.filter(function(x){
+      return Sc.matchOfCards(st.done[0].bb, x.bb).d === 0;
+    });
+    var undecided = inseparable.length > 1;
+
     var rows = st.done.map(function(x, i){
-      return { kind:"done", i:i, x:x, lead:(i === 0) };
+      return { kind:"done", i:i, x:x,
+               lead: undecided ? (i < inseparable.length) : (i === 0),
+               rank: (undecided && i < inseparable.length) ? 1 : i + 1 };
     }).concat(st.waiting.map(function(t){ return { kind:"waiting", t:t }; }));
 
     var pages = Math.max(1, Math.ceil(rows.length / TROWS));
@@ -287,7 +316,9 @@
 
     part.forEach(function(r){
       if (!r){
-        tt.appendChild(h("tr",{class:"blankrow"},[h("td",{}),h("td",{}),h("td",{}),h("td",{})]));
+        tt.appendChild(h("tr",{class:"blankrow"},[
+          h("td",{class:"hn"}), h("td",{class:"team"}), h("td",{class:"n topar"}), h("td",{class:"n"})
+        ]));
         return;
       }
       if (r.kind === "waiting"){
@@ -299,9 +330,10 @@
         return;
       }
       tt.appendChild(h("tr",{class:(r.lead ? "lead" : "")},[
-        h("td",{class:"hn",text:String(r.i+1)}),
+        h("td",{class:"hn",text:String(r.rank)}),
         h("td",{class:"team",text:r.x.team.players.map(first).join(" & ")}),
-        h("td",{class:"n topar",text:Sc.toPar(r.x.total)}),
+        h("td",{class:"n topar" + (r.x.total > Sc.PAR.reduce(function(a,b){return a+b;},0) ? " over" : ""),
+          text:Sc.toPar(r.x.total)}),
         h("td",{class:"n muted",text:String(r.x.total)})
       ]));
     });
@@ -338,6 +370,11 @@
           .concat(potBlock(pots.net, false, "Net skins · hcp over " + LIVE.cutoff));
 
     s.appendChild(head(eyebrow, (LIVE.event && LIVE.event.name) || "Mengacci $$"));
+    /* The band's height is reserved whether or not there is a tie, so the
+       board does not resize itself the moment one appears. */
+    if (tiedAtTop.length <= 1){
+      s.appendChild(h("div",{class:"cards spacer"}));
+    }
     if (tiedAtTop.length > 1){
       /* Say exactly how it was decided, not just that it was. Kyle,
          2026-09-12: "How about explaining even more how the match of cards was
@@ -348,19 +385,26 @@
       var m = Sc.matchOfCards(mine.bb, other.bb);
       var WORD = { "back 9":"the back nine", "last 6":"the last six",
                    "last 3":"the last three", "18th":"the 18th" };
-      var why;
-      if (m.how && WORD[m.how]) {
-        why = "level on " + best + " with " + other.team.players.map(first).join(" & ")
+      var nameOf = function(x){ return x.team.players.map(first).join(" & "); };
+      var who, why;
+      if (undecided) {
+        /* Nobody is named as the winner, because nobody is. All of them are
+           named together and the board says the rules ran out. */
+        who = inseparable.map(nameOf).join("  and  ");
+        why = "level on " + best + " · cards identical through 18 · "
+            + "the match of cards cannot separate them";
+      } else if (m.how && WORD[m.how]) {
+        who = nameOf(mine);
+        why = "level on " + best + " with " + nameOf(other)
             + " · won on " + WORD[m.how] + ", " + m.av + " to " + m.bv
             + " · USGA match of cards";
       } else {
-        /* identical through all 18: the rules run out and a person decides */
-        why = "level on " + best + " with " + other.team.players.map(first).join(" & ")
-            + " · cards identical through 18 · the match of cards cannot separate them";
+        who = nameOf(mine);
+        why = "level on " + best + " with " + nameOf(other);
       }
       s.appendChild(h("div",{class:"cards"},[
-        h("span",{class:"lab",text: (m.how && WORD[m.how]) ? "Match of cards" : "Still tied"}),
-        h("span",{class:"who",text: mine.team.players.map(first).join(" & ")}),
+        h("span",{class:"lab",text: undecided ? "Still tied" : "Match of cards"}),
+        h("span",{class:"who",text: who}),
         h("span",{class:"why",text: why})
       ]));
     }
