@@ -51,12 +51,17 @@
   .prog{flex:none;height:8px;background:var(--green-soft);overflow:hidden}
   .prog .fill{height:100%;width:0;background:var(--green)}
 
-  table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+  /* table-layout:fixed, driven by the colgroup below, so every page of the
+     rotation has identical column positions. With the default auto layout the
+     browser sizes each page's columns from that page's own content, which is
+     why the last page sat indented and ran off the edge. Kyle, 2026-09-12:
+     "as if there was a tab. Not left justified and cut off." */
+  table{width:100%;table-layout:fixed;border-collapse:collapse;font-variant-numeric:tabular-nums}
   th{font-family:"Barlow Condensed",sans-serif;font-weight:600;letter-spacing:.08em;text-transform:uppercase;font-size:calc(19px * var(--k));color:var(--muted);text-align:right;padding:4px 5px;border-bottom:2px solid var(--line)}
   th.l{text-align:left}
   td{padding:calc(7px * var(--k)) 5px;border-bottom:1px solid var(--line);white-space:nowrap}
   td.pos{font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:calc(38px * var(--k));color:var(--muted);text-align:right;width:calc(70px * var(--k))}
-  td.team{font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:calc(52px * var(--k));overflow:hidden;text-overflow:ellipsis;max-width:0;width:99%}
+  td.team{font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:calc(52px * var(--k));overflow:hidden;text-overflow:ellipsis}
   /* The match scores sit just under the total, not half its size. Kyle,
      2026-09-12, third time asking: "I still think the point for each round are
      too small". Row height is set by the total at 62px, so anything up to
@@ -406,6 +411,15 @@
   }
 
   function table(part){
+    /* The widths live here and nowhere else. The team column is the only one
+       without a width, so it takes whatever is left. */
+    var W = ["calc(70px * var(--k))", null,
+             "calc(114px * var(--k))","calc(114px * var(--k))","calc(114px * var(--k))",
+             "calc(114px * var(--k))","calc(114px * var(--k))",
+             "calc(130px * var(--k))","calc(100px * var(--k))"];
+    var group = h("colgroup",{}, W.map(function(w){
+      return h("col", w ? {style:"width:" + w} : {});
+    }));
     var head = h("tr",{},[
       h("th",{class:"l",text:""}), h("th",{class:"l",text:"Team"}),
       h("th",{text:"1"}),h("th",{text:"2"}),h("th",{text:"3"}),h("th",{text:"4"}),h("th",{text:"5"}),
@@ -434,7 +448,7 @@
       cells.push(h("td",{class:"sn",text:r.sundayPlayed?show(r.sunday):"–"}));
       return h("tr",{class:(r.rank===1?"lead ":"")+(r.sundayPlayed&&r.sunRank===1?"sunlead":"")},cells);
     });
-    return h("table",{},[h("thead",{},[head]), h("tbody",{},body)]);
+    return h("table",{},[group, h("thead",{},[head]), h("tbody",{},body)]);
   }
 
   /* ---------- entry ---------- */
