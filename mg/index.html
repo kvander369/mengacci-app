@@ -64,7 +64,7 @@
      exactly, and it also makes every page of the rotation line up, which was
      the other complaint. */
   table{width:100%;table-layout:fixed;border-collapse:collapse;font-variant-numeric:tabular-nums}
-  col.c-pos{width:6%} col.c-team{width:34%} col.c-r{width:7%} col.c-tot{width:13%} col.c-sun{width:12%}
+  col.c-pos{width:6%} col.c-team{width:32%} col.c-r{width:7%} col.c-tot{width:14%} col.c-sun{width:13%}
   th{font-family:"Barlow Condensed",sans-serif;font-weight:600;letter-spacing:.08em;text-transform:uppercase;font-size:calc(19px * var(--k));color:var(--muted);text-align:right;padding:4px 5px;border-bottom:2px solid var(--line)}
   th.l{text-align:left}
   td{padding:calc(7px * var(--k)) 5px;border-bottom:1px solid var(--line);white-space:nowrap;overflow:hidden}
@@ -72,7 +72,11 @@
   td.team{font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:calc(52px * var(--k));text-overflow:ellipsis}
   td.r{font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:calc(46px * var(--k));color:var(--ink);text-align:right}
   td.tot{font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:calc(62px * var(--k));text-align:right}
-  td.sn{font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:calc(46px * var(--k));text-align:right;color:var(--gold)}
+  /* Sunday money reads as big as the pot — Kyle, 2026-09-12: "make the font
+     for Sunday money as big as that for total points, but keep the color that
+     brownish". It is the second pot, not a footnote. The row height is already
+     set by the total at the same size, so this costs no height. */
+  td.sn{font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:calc(62px * var(--k));text-align:right;color:var(--gold)}
   /* a team winning the pot cannot win Sunday money: its Sunday points are
      still shown, because they are a fact, but never in the money colour */
   td.sn.out{color:var(--muted);opacity:.5}
@@ -139,12 +143,12 @@
     .sun .lab{font-size:15px}
     .cols{grid-template-columns:1fr;padding:8px 12px 24px;overflow:visible}
     .col+.col{border-left:0;padding-left:0;border-top:5px solid var(--green-soft);padding-top:10px}
-    col.c-pos{width:8%} col.c-team{width:40%} col.c-r{width:6%} col.c-tot{width:12%} col.c-sun{width:10%}
+    col.c-pos{width:8%} col.c-team{width:38%} col.c-r{width:6%} col.c-tot{width:13%} col.c-sun{width:11%}
     td.pos{font-size:18px}
     td.team{font-size:21px}
     td.r{font-size:16px}
     td.tot{font-size:25px}
-    td.sn{font-size:20px}
+    td.sn{font-size:25px}
   }
 </style>
 </head>
