@@ -72,14 +72,20 @@
      score is centred in its own so it sits near the name rather than against
      the far edge. */
   col.c-hole{width:13%} col.c-who{width:55%} col.c-score{width:32%}
-  th{font-family:"Barlow Condensed",sans-serif;font-weight:600;letter-spacing:.06em;text-transform:uppercase;font-size:calc(20px * var(--k));color:var(--muted);text-align:left;padding:calc(8px * var(--k)) 6px;border-bottom:1px solid var(--line)}
+  /* Headers were half the size of what they head. Kyle, 2026-09-12: "Title
+     TEAM TO PAR NET TOTAL a bit too small (same for Skins headers)". */
+  th{font-family:"Barlow Condensed",sans-serif;font-weight:700;letter-spacing:.06em;text-transform:uppercase;font-size:calc(27px * var(--k));color:var(--muted);text-align:left;padding:calc(8px * var(--k)) 6px;border-bottom:2px solid var(--line)}
   th.r{text-align:right}
+  th.c{text-align:center}
   td{padding:calc(4px * var(--k)) 6px;border-bottom:1px solid var(--line);vertical-align:middle;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   td.n{text-align:right;font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:calc(30px * var(--k))}
   td.hn{font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:calc(28px * var(--k));color:var(--muted)}
   td.team{font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:calc(40px * var(--k))}
   td.topar{font-size:calc(46px * var(--k));color:var(--green);font-weight:700}
-  td.who{font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:calc(34px * var(--k));padding-left:calc(16px * var(--k))}
+  /* A little air after the hole number — with none at all the name crowded it.
+     Kyle, 2026-09-12. The header carries the same indent so they still line up. */
+  td.who{font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:calc(34px * var(--k));padding-left:calc(22px * var(--k))}
+  th.who{padding-left:calc(22px * var(--k))}
   tr.lead td{background:var(--green-soft)}
   tr.lead td.topar,tr.lead td.hn{color:var(--green)}
   tr.blankrow td{border-bottom:0;background:transparent;padding:0}
@@ -138,8 +144,20 @@
 
   var q = new URLSearchParams(location.search);
   if (q.get("api")) TV_API = q.get("api");
-  if (/^\d+$/.test(q.get("rows") || "")) TROWS = Math.max(4, Math.min(40, +q.get("rows")));
-  if (/^\d+$/.test(q.get("secs") || "")) TSECS = Math.max(3, Math.min(120, +q.get("secs")));
+  /* An address wins, for a seat testing a size without touching Kyle's phone,
+     and locks out whatever the phone sends. */
+  var rowsLocked = /^\d+$/.test(q.get("rows") || ""), secsLocked = /^\d+$/.test(q.get("secs") || "");
+  if (rowsLocked) TROWS = Math.max(4, Math.min(40, +q.get("rows")));
+  if (secsLocked) TSECS = Math.max(3, Math.min(120, +q.get("secs")));
+
+  /* Otherwise the phone decides, and a change takes effect on the next send. */
+  function takeSettings(j){
+    var changed = false;
+    if (!rowsLocked && j && +j.rows >= 4 && +j.rows <= 40 && +j.rows !== TROWS){ TROWS = +j.rows; changed = true; }
+    if (!secsLocked && j && +j.secs >= 3 && +j.secs <= 120 && +j.secs !== TSECS){ TSECS = +j.secs; changed = true; }
+    if (changed && typeof armPages === "function") armPages();
+    return changed;
+  }
 
   var LIVE = null;            /* last good payload */
   var lastOK = 0;             /* when it arrived, ms */
@@ -278,7 +296,13 @@
     var players = ids.map(function(pid){ return by[pid]; });
     var pots = Sc.pots(players, LIVE.cutoff == null ? null : LIVE.cutoff);
     function potBlock(members, useGross, label){
-      var t = h("table",{},[h("tr",{},[h("th",{text:"Hole"}),h("th",{text:"Skin"}),h("th",{text:useGross?"Gross score":"Net score",class:"r"})])]);
+      /* The skins table needs its own column definitions too. Without them,
+         table-layout:fixed simply splits the table into equal thirds, which is
+         what put the hole, the name and the score so far apart. */
+      var sg = h("colgroup",{},[
+        h("col",{class:"c-hole"}), h("col",{class:"c-who"}), h("col",{class:"c-score"})
+      ]);
+      var t = h("table",{},[sg, h("tr",{},[h("th",{text:"Hole"}),h("th",{text:"Skin",class:"who"}),h("th",{text:useGross?"Gross score":"Net score",class:"c"})])]);
       var n = 0;
       Sc.skins(members, useGross).forEach(function(r){
         if (r.kind !== "skin") return;
@@ -396,7 +420,7 @@
       .then(function(r){ return r.json(); })
       .then(function(data){
         everFetched = true;
-        if (data && data.format === "mengacci-live-v1"){ LIVE = data; lastOK = Date.now(); }
+        if (data && data.format === "mengacci-live-v1"){ LIVE = data; lastOK = Date.now(); takeSettings(data); }
         render();
       })
       .catch(function(){ render(); });   /* keep the last good board up */

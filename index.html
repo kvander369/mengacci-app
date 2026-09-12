@@ -386,6 +386,20 @@
         onclick:function(){ TV.on=!TV.on; tvSave(); tvState.next=0; tvState.error=null; render(); if(TV.on) tvPost(true); }}),
       h("button",{class:"btn quiet sm",text:"Send now",disabled:!TV.api||!TV.key,onclick:function(){ tvPost(true); }})
     ]));
+    /* How the club board rotates is Kyle's to set here, not a query string he
+       has to type on a Fire TV remote. Kyle, 2026-09-12: "Is the number of
+       teams per page and the scroll rate picked by me (same as Vander point
+       app)?" It rides in the payload and the board takes it on the next send. */
+    kids.push(h("div",{class:"lab",style:"margin-top:10px",text:"Teams on screen at once"}));
+    kids.push(h("div",{class:"row"}, [9,13,17,25].map(function(n){
+      return h("button",{class:"btn sm "+(TV.rows===n?"":"quiet"),text:(n>=25?"all":String(n)),
+        onclick:function(){ TV.rows=n; tvSave(); render(); }});
+    })));
+    kids.push(h("div",{class:"lab",style:"margin-top:10px",text:"Seconds a page"}));
+    kids.push(h("div",{class:"row"}, [5,10,15,20,30].map(function(n){
+      return h("button",{class:"btn sm "+(TV.secs===n?"":"quiet"),text:String(n),
+        onclick:function(){ TV.secs=n; tvSave(); render(); }});
+    })));
     kids.push(h("div",{class:"note",text:"TV board · "+tvStatus()}));
 
     kids.push(h("button",{class:"btn "+(locked?"quiet":"gold"),style:"margin-top:8px",text:locked?"Unlock":"Lock for the round",onclick:function(){
@@ -841,12 +855,15 @@
   var TVK = "mengacci_tv";
   var TV = (function(){ try{ var r=localStorage.getItem(TVK); if(r){ var o=JSON.parse(r); if(o) return o; } }catch(e){} return {api:"",key:"",on:false}; })();
   if(!TV.api && TV_API) TV.api = TV_API;
+  if(!TV.rows) TV.rows = 13;
+  if(!TV.secs) TV.secs = 10;
   function tvSave(){ try{ localStorage.setItem(TVK, JSON.stringify(TV)); }catch(e){} }
 
   var tvState = { sig:"", sent:null, error:null, busy:false, next:0, tries:0 };
 
   function tvPayload(){
     return { format:"mengacci-live-v1", posted:new Date().toISOString(), source:TV_SOURCE,
+      rows:TV.rows, secs:TV.secs,
       event:{ name:S.setup.name, date:S.setup.date }, cutoff:S.cutoff,
       people:S.people.map(function(p){ return {id:p.id, first:p.first, last:p.last}; }),
       teams:S.teams.map(function(t){ return {id:t.id, players:t.players.slice()}; }),
