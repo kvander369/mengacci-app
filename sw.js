@@ -8,7 +8,7 @@
  * the version shows at the bottom of Setup so "which version is my phone on"
  * has an answer.
  */
-const CACHE = 'mengacci-v2';
+const CACHE = 'mengacci-v3';
 
 const SHELL = [
   './',
@@ -44,9 +44,11 @@ self.addEventListener('fetch', e => {
      Its scope is the whole site, so without these it would answer both from
      the cache and the board would show the same scores all afternoon:
        - the live channel: every answer is new by definition, never cached;
-       - the board page itself, which is online-only and has no offline story. */
+       - the board pages themselves (/tv/ and /mg/), which are online-only and
+         have no offline story. */
   if (url.hostname.endsWith('script.google.com') || url.hostname.endsWith('script.googleusercontent.com')) return;
   if (url.pathname.indexOf('/tv/') >= 0) return;
+  if (url.pathname.indexOf('/mg/') >= 0) return;   /* the points pot board: same reason */
 
   const isFont = url.hostname === 'fonts.googleapis.com' || url.hostname === 'fonts.gstatic.com';
   e.respondWith(
