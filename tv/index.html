@@ -80,19 +80,19 @@
   td{padding:calc(4px * var(--k)) 6px;border-bottom:1px solid var(--line);vertical-align:middle;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   td.n{text-align:right;font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:calc(28px * var(--k))}
   td.hn{font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:calc(28px * var(--k));color:var(--muted)}
-  td.team{font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:calc(34px * var(--k))}
-  td.topar{font-size:calc(39px * var(--k));color:var(--green);font-weight:700}
+  td.team{font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:calc(38px * var(--k))}
+  td.topar{font-size:calc(43px * var(--k));color:var(--green);font-weight:700}
   /* A little air after the hole number — with none at all the name crowded it.
      Kyle, 2026-09-12. The header carries the same indent so they still line up. */
-  td.who{font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:calc(35px * var(--k));padding-left:calc(22px * var(--k))}
+  td.who{font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:calc(32px * var(--k));padding-left:calc(22px * var(--k))}
   th.who{padding-left:calc(22px * var(--k))}
   tr.lead td{background:var(--green-soft)}
   tr.lead td.topar,tr.lead td.hn{color:var(--green)}
   tr.blankrow td{border-bottom:0;background:transparent;padding:0}
   tr.skin td{background:var(--green-soft)}
   tr.skin td.who{color:var(--green)}
-  tr.skin td.hn{font-size:calc(31px * var(--k));color:var(--ink)}
-  tr.skin td.n{font-size:calc(35px * var(--k));text-align:center}
+  tr.skin td.hn{font-size:calc(29px * var(--k));color:var(--ink)}
+  tr.skin td.n{font-size:calc(32px * var(--k));text-align:center}
 
   /* the only screen that is not the board: nothing has arrived yet */
   .blank{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;text-align:center;padding:40px}
@@ -217,11 +217,25 @@
       [].forEach.call(box.children, function(c){ b = Math.max(b, c.getBoundingClientRect().bottom); });
       return b;
     }
-    var k = 1, guard = 0;
-    while (lowest() > target && k > 0.4 && guard++ < 16){
-      k = Math.max(0.4, k * Math.min(0.985, (target - top) / (lowest() - top)));
-      root.style.setProperty("--k", String(k));
+    /* Fill the screen, do not merely avoid overflowing it. The old loop only
+       ever shrank, so a tall television left the type at whatever the base
+       sizes happened to be while there was room going spare. Kyle, 2026-09-12:
+       "So the fonts adjust size?" — they do, and now in both directions.
+       The base sizes set the PROPORTIONS between the two halves; this decides
+       how big the whole thing is on the screen in front of it. */
+    var lo = 0.4, hi = 2.2, k = 1, guard = 0;
+    function fits(v){
+      root.style.setProperty("--k", String(v));
+      return lowest() <= target;
     }
+    /* if the page does not fit even at its smallest, take the smallest */
+    if (!fits(lo)) { root.style.setProperty("--k", String(lo)); return; }
+    while (hi - lo > 0.01 && guard++ < 24){
+      var mid = (lo + hi) / 2;
+      if (fits(mid)) lo = mid; else hi = mid;
+    }
+    k = lo;
+    root.style.setProperty("--k", String(k));
   }
 
   function render(){
