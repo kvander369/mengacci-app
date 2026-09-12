@@ -30,6 +30,7 @@
   .logo{width:104px;height:104px;flex:none;object-fit:contain;background:var(--green-ink);border-radius:50%;padding:8px}
   .top h1{font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:52px;margin:0;line-height:1;letter-spacing:.01em}
   .eyebrow{font-family:"Barlow Condensed",sans-serif;font-weight:600;letter-spacing:.14em;text-transform:uppercase;font-size:19px;opacity:.85}
+  .event{font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:27px;opacity:.9;margin-top:1px}
   .top .right{font-family:"Barlow Condensed",sans-serif;font-size:22px;font-weight:600;text-align:right;opacity:.92;white-space:nowrap;line-height:1.25}
   .top .right .warn{color:var(--gold-soft)}
 
@@ -91,6 +92,7 @@
     .top{padding:12px 14px;gap:12px}
     .logo{width:60px;height:60px;padding:5px}
     .top h1{font-size:27px}
+    .event{font-size:16px}
     .eyebrow{font-size:13px}
     .top .right{font-size:15px}
     .sun{padding:7px 14px;font-size:19px;flex-wrap:wrap;white-space:normal}
@@ -144,6 +146,10 @@
   ];
 
   var TITLE = "Vander-Total-Points Pot";
+  /* The pot is run at every club event, so the event name is data, not code.
+     Kyle types it once on the entry screen; it rides along to the TV. */
+  var EVENT_DEFAULT = "3-Day Member Guest";
+  var EVSTORE = "vtp_event";
   var STORE = "vtp_2026";           /* its own key. The Mengacci app's round is
                                        stored under a different one and this page
                                        never reads or writes it. */
@@ -159,7 +165,28 @@
   if (q.get("api")) MG_API = q.get("api");
   var ENTRY = q.get("enter") === "1";
 
+  var round0 = 0;
   var points = load();
+  preload();
+
+  /* ?set=1&vals=3.5,3,1.5,... fills one whole match in team order and then
+     takes itself out of the address bar, so a refresh cannot re-apply it.
+     25 numbers typed by thumb is five minutes; a link is one tap. Typing them
+     by hand still works and is the fallback whenever there is no link. */
+  function preload(){
+    var set = parseInt(q.get("set"), 10), vals = q.get("vals");
+    if(!(set >= 1 && set <= 5) || !vals) return;
+    var list = vals.split(",");
+    if(list.length !== TEAMS.length) return;
+    for(var i = 0; i < TEAMS.length; i++){
+      var t = list[i].trim();
+      var v = (t === "" || t === "-") ? null : Number(t);
+      points[i][set-1] = (v === null || !isFinite(v)) ? null : v;
+    }
+    save();
+    try{ history.replaceState(null, "", location.pathname + (ENTRY ? "?enter=1" : "")); }catch(e){}
+    round0 = set - 1;
+  }
   var lastPost = 0, lastOK = 0, everFetched = false, postState = "";
 
   /* ---------- storage ---------- */
@@ -195,7 +222,8 @@
         h("img",{class:"logo",src:"ccw-logo.png",alt:"Country Club of Waterbury"}),
         h("div",{},[
           h("div",{class:"eyebrow",text:"Country Club of Waterbury"}),
-          h("h1",{text:TITLE})
+          h("h1",{text:TITLE}),
+          h("div",{class:"event",text:getEvent()})
         ])
       ]),
       h("div",{class:"right"}, rightLines.map(function(l){
@@ -284,7 +312,6 @@
   }
 
   /* ---------- entry ---------- */
-  var round0 = 0;
   function renderEntry(){
     var scr = document.getElementById("screen");
     scr.innerHTML = "";
@@ -309,7 +336,10 @@
     });
 
     var setup = h("div",{class:"setup"},[
-      h("label",{text:"TV key — type once, stays on this phone"}),
+      h("label",{text:"Event name — shows on the board"}),
+      h("input",{type:"text",value:getEvent(),
+        onchange:function(){ setEvent(this.value); renderEntry(); }}),
+      h("label",{text:"TV key — type once, stays on this phone",style:"margin-top:12px"}),
       h("input",{type:"password",value:getKey(),placeholder:"the POST_KEY from the script",
         onchange:function(){ setKey(this.value); }})
     ]);
@@ -331,6 +361,8 @@
     if(row) row.className = "row" + (points[i][round0]===null?"":" done");
     var c = document.getElementById("count"); if(c) c.textContent = count();
   }
+  function getEvent(){ try{ return localStorage.getItem(EVSTORE) || EVENT_DEFAULT; }catch(e){ return EVENT_DEFAULT; } }
+  function setEvent(v){ try{ localStorage.setItem(EVSTORE, v.trim() || EVENT_DEFAULT); }catch(e){} }
   function getKey(){ try{ return localStorage.getItem(KEYSTORE)||""; }catch(e){ return ""; } }
   function setKey(v){ try{ localStorage.setItem(KEYSTORE, v); }catch(e){} }
 
@@ -343,7 +375,7 @@
       method:"POST", redirect:"follow",
       headers:{"Content-Type":"text/plain;charset=utf-8"},
       body: JSON.stringify({ key:getKey(), board:"vtp", round:{
-        format:"vtp-live-v1", title:TITLE, posted:new Date().toISOString(),
+        format:"vtp-live-v1", title:TITLE, event:getEvent(), posted:new Date().toISOString(),
         teams:TEAMS, points:points
       }})
     }).then(function(r){ return r.json(); })
@@ -359,7 +391,9 @@
       .then(function(j){
         everFetched = true;
         if(j && j.format === "vtp-live-v1" && Array.isArray(j.points)){
-          points = j.points; lastOK = Date.now(); renderBoard();
+          points = j.points;
+          if(j.event) setEvent(j.event);
+          lastOK = Date.now(); renderBoard();
         } else if(j && j.empty){ renderBoard(); }
       })
       .catch(function(){ everFetched = true; });
