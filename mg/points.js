@@ -17,6 +17,41 @@
   var ROUNDS = 5;
   var SUNDAY = [3, 4];          /* zero-based: matches 4 and 5 */
 
+  /* The scale a match score can land on. From the event's own rules sheet,
+     read 2026-09-12:
+
+       five 9-hole matches, each match worth 10 points in total
+       1 point a hole won, 1/2 a hole halved, 0 a hole lost
+       1 bonus point to the winning team
+       a tied match is 5 points each
+       "the maximum point threshold during any one match will be
+        restricted to 8 points"
+
+     Nine holes at a half each is why every score is a half, and the 8-point
+     cap is why the panel stops there — 9 holes won plus the bonus would be
+     10 without it. Both are settings and not baked in, because Kyle runs a
+     points pool at every club event and the next one will have its own sheet.
+     A score is one of these values and nothing else, which is why the phone
+     needs no keyboard and a typo is not possible. */
+  var STEPS = [0.25, 0.5, 1];
+  var STEP = 0.5, MAX = 8;
+  function step(s) { s = Number(s); return STEPS.indexOf(s) >= 0 ? s : STEP; }
+  function max(m) { m = Number(m); return (isFinite(m) && m > 0 && m <= 100) ? m : MAX; }
+  function scale(s, m) {
+    s = step(s); m = max(m);
+    var a = [], n = Math.floor(m / s + 1e-9);
+    for (var i = 0; i <= n; i++) a.push(Math.round(i * s * 100) / 100);
+    return a;
+  }
+  function onScale(v, s, m) {
+    if (v === null || v === undefined || v === '' || typeof v === 'boolean') return false;
+    s = step(s);
+    v = Number(v);
+    if (!isFinite(v) || v < 0 || v > max(m)) return false;
+    var units = v / s;
+    return Math.abs(units - Math.round(units)) < 1e-9;
+  }
+
   /* "Wessendorf & Grieder", but "Gary & Carl Valimont" when a team shares a
      surname — five of the 25 do, and "Valimont & Valimont" tells nobody who
      is playing. */
@@ -110,7 +145,8 @@
   }
 
   var API = {
-    ROUNDS: ROUNDS, SUNDAY: SUNDAY,
+    ROUNDS: ROUNDS, SUNDAY: SUNDAY, STEPS: STEPS, STEP: STEP, MAX: MAX,
+    step: step, max: max, scale: scale, onScale: onScale,
     teamName: teamName, standings: standings, roundsIn: roundsIn,
     entered: entered, leaders: leaders
   };

@@ -43,19 +43,18 @@
   .sun .num{color:#7A560F;font-size:32px;font-weight:700}
   .sun .who{color:#7A560F;overflow:hidden;text-overflow:ellipsis}
 
-  .cols{flex:1;min-height:0;padding:10px 40px 18px;display:grid;grid-template-columns:1fr 1fr;gap:0 44px;align-items:start;overflow:hidden}
+  .cols{flex:1;min-height:0;padding:10px 34px 18px;display:grid;grid-template-columns:repeat(3,1fr);gap:0 28px;align-items:start;overflow:hidden}
   .col{min-width:0}
-  .col+.col{border-left:5px solid var(--green-soft);padding-left:40px}
+  .col+.col{border-left:5px solid var(--green-soft);padding-left:26px}
 
   table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
-  th{font-family:"Barlow Condensed",sans-serif;font-weight:600;letter-spacing:.08em;text-transform:uppercase;font-size:calc(17px * var(--k));color:var(--muted);text-align:right;padding:4px 5px;border-bottom:2px solid var(--line)}
+  th{font-family:"Barlow Condensed",sans-serif;font-weight:600;letter-spacing:.08em;text-transform:uppercase;font-size:calc(19px * var(--k));color:var(--muted);text-align:right;padding:4px 5px;border-bottom:2px solid var(--line)}
   th.l{text-align:left}
-  td{padding:calc(3px * var(--k)) 5px;border-bottom:1px solid var(--line);white-space:nowrap}
-  td.pos{font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:calc(22px * var(--k));color:var(--muted);text-align:right;width:44px}
-  td.team{font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:calc(27px * var(--k));overflow:hidden;text-overflow:ellipsis;max-width:0;width:99%}
-  td.r{font-family:"Barlow Condensed",sans-serif;font-weight:500;font-size:calc(20px * var(--k));color:var(--muted);text-align:right;width:42px}
-  td.tot{font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:calc(30px * var(--k));text-align:right;width:64px}
-  td.sn{font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:calc(24px * var(--k));text-align:right;width:56px;color:var(--gold)}
+  td{padding:calc(7px * var(--k)) 5px;border-bottom:1px solid var(--line);white-space:nowrap}
+  td.pos{font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:calc(30px * var(--k));color:var(--muted);text-align:right;width:52px}
+  td.team{font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:calc(36px * var(--k));overflow:hidden;text-overflow:ellipsis;max-width:0;width:99%}
+  td.tot{font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:calc(48px * var(--k));text-align:right;width:104px}
+  td.sn{font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:calc(34px * var(--k));text-align:right;width:80px;color:var(--gold)}
   tr.lead td{background:var(--green-soft)}
   tr.lead td.pos,tr.lead td.tot{color:var(--green)}
   tr.sunlead td.sn{background:var(--gold-soft);font-weight:700}
@@ -70,9 +69,27 @@
   .count{padding:10px 16px 0;font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:22px;color:var(--muted);background:var(--bg);flex:none}
   .row{display:flex;align-items:center;gap:12px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-top:8px}
   .row .nm{flex:1;min-width:0;font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:23px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .row input{width:96px;flex:none;font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:30px;text-align:center;
+  .row .val{width:104px;flex:none;font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:32px;text-align:center;
     padding:10px 4px;border:2px solid var(--line);border-radius:10px;background:#fff;color:var(--ink)}
-  .row input:focus{border-color:var(--green);outline:none}
+  .row.done .val{border-color:var(--green);color:var(--green)}
+  .row .val.empty{color:var(--line)}
+
+  /* the panel of the only values a match score can be */
+  .sheet{position:fixed;inset:0;background:rgba(22,36,28,.55);display:flex;align-items:flex-end;z-index:60}
+  .sheetin{background:var(--panel);width:100%;border-radius:20px 20px 0 0;padding:16px 14px 20px;max-height:88vh;overflow:auto}
+  .sheetnm{font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:30px}
+  .sheetsub{font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:20px;color:var(--muted);margin-bottom:12px}
+  .vals{display:grid;grid-template-columns:repeat(4,1fr);gap:9px}
+  .vals button{font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:30px;padding:16px 0;
+    border:2px solid var(--line);border-radius:12px;background:#fff;color:var(--ink)}
+  .vals button.on{background:var(--green);border-color:var(--green);color:var(--green-ink)}
+  .sheetfoot{display:flex;gap:9px;margin-top:12px}
+  .sheetfoot button{flex:1;font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:22px;padding:15px 0;
+    border:2px solid var(--line);border-radius:12px;background:var(--panel);color:var(--muted)}
+  .steps{display:flex;gap:8px;margin:2px 0 10px}
+  .steps button{flex:1;font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:20px;padding:11px 0;
+    border:2px solid var(--line);border-radius:10px;background:var(--panel);color:var(--muted)}
+  .steps button.on{background:var(--green);border-color:var(--green);color:var(--green-ink)}
   .row.done{background:var(--green-soft);border-color:var(--green-soft)}
   .bar{position:fixed;left:0;right:0;bottom:0;background:var(--panel);border-top:2px solid var(--line);padding:12px 16px;display:flex;gap:10px}
   .bar button{flex:1;font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:24px;padding:16px 0;border:0;border-radius:12px;background:var(--green);color:var(--green-ink)}
@@ -100,10 +117,10 @@
     .sun .lab{font-size:15px}
     .cols{grid-template-columns:1fr;padding:8px 12px 24px;overflow:visible}
     .col+.col{border-left:0;padding-left:0;border-top:5px solid var(--green-soft);padding-top:10px}
-    td.team{font-size:21px}
-    td.tot{font-size:24px}
-    td.sn{font-size:19px}
-    td.r{font-size:16px;width:34px}
+    td.pos{font-size:18px;width:34px}
+    td.team{font-size:22px}
+    td.tot{font-size:26px;width:62px}
+    td.sn{font-size:20px;width:50px}
   }
 </style>
 </head>
@@ -113,7 +130,7 @@
 <script>
 (function(){
   "use strict";
-  var P = window.Points;
+  var Pts = window.Points;
 
   /* The 25 teams, as Kyle sent them 2026-09-12. Fixed for the weekend: there
      is no roster screen, because there is nothing to change. mg/teams.json is
@@ -151,6 +168,7 @@
      Kyle types it once on the entry screen; it rides along to the TV. */
   var EVENT_DEFAULT = "3-Day Member Guest";
   var EVSTORE = "vtp_event";
+  var STEPSTORE = "vtp_step", MAXSTORE = "vtp_max";
   var STORE = "vtp_2026";           /* its own key. The Mengacci app's round is
                                        stored under a different one and this page
                                        never reads or writes it. */
@@ -182,7 +200,7 @@
     for(var i = 0; i < TEAMS.length; i++){
       var t = list[i].trim();
       var v = (t === "" || t === "-") ? null : Number(t);
-      points[i][set-1] = (v === null || !isFinite(v)) ? null : v;
+      points[i][set-1] = Pts.onScale(v, getStep(), getMax()) ? v : null;
     }
     save();
     try{ history.replaceState(null, "", location.pathname + (ENTRY ? "?enter=1" : "")); }catch(e){}
@@ -235,8 +253,8 @@
 
   /* ---------- the board ---------- */
   function renderBoard(){
-    var rows = P.standings(TEAMS, points);
-    var n = P.roundsIn(points);
+    var rows = Pts.standings(TEAMS, points);
+    var n = Pts.roundsIn(points);
     var scr = document.getElementById("screen");
     scr.innerHTML = "";
 
@@ -258,7 +276,7 @@
     }
 
     /* the Sunday money strip */
-    var sunLeaders = P.leaders(rows,"sunday");
+    var sunLeaders = Pts.leaders(rows,"sunday");
     var anySunday = rows.some(function(r){ return r.sundayPlayed > 0; });
     scr.appendChild(h("div",{class:"sun"},[
       h("span",{class:"lab",text:"Sunday money"}),
@@ -268,11 +286,15 @@
         : "Matches 4 and 5"})
     ]));
 
-    var half = Math.ceil(rows.length/2);
+    /* Three columns, not two. Kyle on the club TV, 2026-09-12: "the points are
+       way too small to see. You have plenty of room. Maybe three columns so
+       points can be bigger?" Narrower columns are the trade, so the per-match
+       scores come off the board — the standing is what the room is reading. */
+    var COLS = 3, per = Math.ceil(rows.length/COLS);
     var cols = h("div",{class:"cols"});
-    [rows.slice(0,half), rows.slice(half)].forEach(function(part){
-      cols.appendChild(h("div",{class:"col"},[table(part)]));
-    });
+    for(var ci = 0; ci < COLS; ci++){
+      cols.appendChild(h("div",{class:"col"},[table(rows.slice(ci*per, (ci+1)*per))]));
+    }
     scr.appendChild(cols);
     fit(cols);
   }
@@ -306,21 +328,15 @@
   function table(part){
     var head = h("tr",{},[
       h("th",{class:"l",text:""}), h("th",{class:"l",text:"Team"}),
-      h("th",{text:"1"}),h("th",{text:"2"}),h("th",{text:"3"}),h("th",{text:"4"}),h("th",{text:"5"}),
       h("th",{text:"Tot"}), h("th",{text:"Sun"})
     ]);
     var body = part.map(function(r){
-      var cells = [
-        h("td",{class:"pos",text:(r.rank===1?"":"")+r.rank}),
-        h("td",{class:"team",text:r.name})
-      ];
-      r.rounds.forEach(function(v){
-        cells.push(h("td",{class:"r"+(v===null?" dash":""),text:v===null?"–":String(v)}));
-      });
-      cells.push(h("td",{class:"tot",text:String(r.total)}));
-      cells.push(h("td",{class:"sn",text:r.sundayPlayed?String(r.sunday):"–"}));
-      var tr = h("tr",{class:(r.rank===1?"lead ":"")+(r.sundayPlayed&&r.sunRank===1?"sunlead":"")},cells);
-      return tr;
+      return h("tr",{class:(r.rank===1?"lead ":"")+(r.sundayPlayed&&r.sunRank===1?"sunlead":"")},[
+        h("td",{class:"pos",text:String(r.rank)}),
+        h("td",{class:"team",text:r.name}),
+        h("td",{class:"tot",text:show(r.total)}),
+        h("td",{class:"sn",text:r.sundayPlayed?show(r.sunday):"–"})
+      ]);
     });
     return h("table",{},[h("thead",{},[head]), h("tbody",{},body)]);
   }
@@ -341,11 +357,10 @@
 
     var pad = h("div",{class:"pad"});
     TEAMS.forEach(function(pair,i){
-      var val = points[i][round0];
-      var inp = h("input",{type:"number",inputmode:"decimal",value:(val===null?"":String(val)),
-        onchange:function(){ setVal(i,this.value); }, oninput:function(){ setVal(i,this.value); }});
-      pad.appendChild(h("div",{class:"row"+(val===null?"":" done"),id:"row"+i},[
-        h("div",{class:"nm",text:P.teamName(pair)}), inp
+      pad.appendChild(h("div",{class:"row"+(points[i][round0]===null?"":" done"),id:"row"+i},[
+        h("div",{class:"nm",text:Pts.teamName(pair)}),
+        h("button",{class:"val"+(points[i][round0]===null?" empty":""),id:"val"+i,
+          text:show(points[i][round0]), onclick:function(){ pick(i); }})
       ]));
     });
 
@@ -355,10 +370,14 @@
         onchange:function(){ setEvent(this.value); renderEntry(); }}),
       h("label",{text:"TV key — type once, stays on this phone",style:"margin-top:12px"}),
       h("input",{type:"password",value:getKey(),placeholder:"the POST_KEY from the script",
-        onchange:function(){ setKey(this.value); }})
+        onchange:function(){ setKey(this.value); }}),
+      h("label",{text:"Points scale — from the event rules sheet",style:"margin-top:12px"}),
+      stepButtons(),
+      h("input",{type:"number",inputmode:"numeric",value:String(getMax()),
+        onchange:function(){ setMax(this.value); renderEntry(); }})
     ]);
     pad.appendChild(setup);
-    pad.appendChild(h("div",{class:"note",text:"Scores are saved on this phone the moment you type them. Send to TV pushes them to the club screen."}));
+    pad.appendChild(h("div",{class:"note",text:"Tap a team to set its points. Saved on this phone straight away; Send to TV puts them on the club screen."}));
     scr.appendChild(pad);
 
     scr.appendChild(h("div",{class:"bar"},[
@@ -366,15 +385,55 @@
       h("button",{text:"Send to TV",onclick:post})
     ]));
   }
-  function count(){ return P.entered(points, round0) + " of " + TEAMS.length + " in for match " + (round0+1); }
+  function count(){ return Pts.entered(points, round0) + " of " + TEAMS.length + " in for match " + (round0+1); }
+  function show(v){ return v === null ? "–" : (v === Math.round(v) ? String(v) : v.toFixed(1)); }
+
+  function stepButtons(){
+    var box = h("div",{class:"steps"});
+    Pts.STEPS.forEach(function(st){
+      box.appendChild(h("button",{class:(Pts.step(getStep()) === st ? "on" : ""),
+        text:(st === 1 ? "whole" : st === 0.5 ? "halves" : "quarters"),
+        onclick:function(){ setStep(st); renderEntry(); }}));
+    });
+    return box;
+  }
+
+  /* the panel: every value a match score can be, and nothing else. No keyboard,
+     so no typo and no number that is not on the scale. */
+  function pick(i){
+    var cur = points[i][round0];
+    var grid = h("div",{class:"vals"});
+    Pts.scale(getStep(), getMax()).forEach(function(v){
+      grid.appendChild(h("button",{class:(cur === v ? "on" : ""), text:show(v),
+        onclick:function(){ setVal(i, v); close(); }}));
+    });
+    var sheet = h("div",{class:"sheet",onclick:function(e){ if(e.target === sheet) close(); }},[
+      h("div",{class:"sheetin"},[
+        h("div",{class:"sheetnm",text:Pts.teamName(TEAMS[i])}),
+        h("div",{class:"sheetsub",text:"Match " + (round0+1)}),
+        grid,
+        h("div",{class:"sheetfoot"},[
+          h("button",{text:"Clear",onclick:function(){ setVal(i,null); close(); }}),
+          h("button",{text:"Cancel",onclick:close})
+        ])
+      ])
+    ]);
+    function close(){ if(sheet.parentNode) sheet.parentNode.removeChild(sheet); }
+    document.body.appendChild(sheet);
+  }
+
   function setVal(i, v){
-    points[i][round0] = (v === "" ? null : Number(v));
-    if(points[i][round0] !== null && !isFinite(points[i][round0])) points[i][round0] = null;
+    points[i][round0] = Pts.onScale(v, getStep(), getMax()) ? Number(v) : null;
     save();
-    var row = document.getElementById("row"+i);
+    var row = document.getElementById("row"+i), btn = document.getElementById("val"+i);
     if(row) row.className = "row" + (points[i][round0]===null?"":" done");
+    if(btn){ btn.textContent = show(points[i][round0]); btn.className = "val" + (points[i][round0]===null?" empty":""); }
     var c = document.getElementById("count"); if(c) c.textContent = count();
   }
+  function getStep(){ try{ return Pts.step(localStorage.getItem(STEPSTORE)); }catch(e){ return Pts.STEP; } }
+  function setStep(v){ try{ localStorage.setItem(STEPSTORE, String(Pts.step(v))); }catch(e){} }
+  function getMax(){ try{ return Pts.max(localStorage.getItem(MAXSTORE)); }catch(e){ return Pts.MAX; } }
+  function setMax(v){ try{ localStorage.setItem(MAXSTORE, String(Pts.max(v))); }catch(e){} }
   function getEvent(){ try{ return localStorage.getItem(EVSTORE) || EVENT_DEFAULT; }catch(e){ return EVENT_DEFAULT; } }
   function setEvent(v){ try{ localStorage.setItem(EVSTORE, v.trim() || EVENT_DEFAULT); }catch(e){} }
   function getKey(){ try{ return localStorage.getItem(KEYSTORE)||""; }catch(e){ return ""; } }
