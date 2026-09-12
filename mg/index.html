@@ -43,18 +43,19 @@
   .sun .num{color:#7A560F;font-size:32px;font-weight:700}
   .sun .who{color:#7A560F;overflow:hidden;text-overflow:ellipsis}
 
-  .cols{flex:1;min-height:0;padding:10px 34px 18px;display:grid;grid-template-columns:repeat(3,1fr);gap:0 28px;align-items:start;overflow:hidden}
+  .cols{flex:1;min-height:0;padding:8px 34px 14px;display:grid;grid-template-columns:repeat(2,1fr);gap:0 36px;align-items:start;overflow:hidden}
   .col{min-width:0}
-  .col+.col{border-left:5px solid var(--green-soft);padding-left:26px}
+  .col+.col{border-left:5px solid var(--green-soft);padding-left:34px}
 
   table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
   th{font-family:"Barlow Condensed",sans-serif;font-weight:600;letter-spacing:.08em;text-transform:uppercase;font-size:calc(19px * var(--k));color:var(--muted);text-align:right;padding:4px 5px;border-bottom:2px solid var(--line)}
   th.l{text-align:left}
   td{padding:calc(7px * var(--k)) 5px;border-bottom:1px solid var(--line);white-space:nowrap}
-  td.pos{font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:calc(30px * var(--k));color:var(--muted);text-align:right;width:52px}
-  td.team{font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:calc(36px * var(--k));overflow:hidden;text-overflow:ellipsis;max-width:0;width:99%}
-  td.tot{font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:calc(48px * var(--k));text-align:right;width:104px}
-  td.sn{font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:calc(34px * var(--k));text-align:right;width:80px;color:var(--gold)}
+  td.pos{font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:calc(26px * var(--k));color:var(--muted);text-align:right;width:46px}
+  td.team{font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:calc(33px * var(--k));overflow:hidden;text-overflow:ellipsis;max-width:0;width:99%}
+  td.r{font-family:"Barlow Condensed",sans-serif;font-weight:500;font-size:calc(27px * var(--k));color:var(--muted);text-align:right;width:calc(54px * var(--k))}
+  td.tot{font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:calc(44px * var(--k));text-align:right;width:calc(92px * var(--k))}
+  td.sn{font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:calc(34px * var(--k));text-align:right;width:calc(72px * var(--k));color:var(--gold)}
   tr.lead td{background:var(--green-soft)}
   tr.lead td.pos,tr.lead td.tot{color:var(--green)}
   tr.sunlead td.sn{background:var(--gold-soft);font-weight:700}
@@ -117,10 +118,11 @@
     .sun .lab{font-size:15px}
     .cols{grid-template-columns:1fr;padding:8px 12px 24px;overflow:visible}
     .col+.col{border-left:0;padding-left:0;border-top:5px solid var(--green-soft);padding-top:10px}
-    td.pos{font-size:18px;width:34px}
-    td.team{font-size:22px}
-    td.tot{font-size:26px;width:62px}
-    td.sn{font-size:20px;width:50px}
+    td.pos{font-size:18px;width:30px}
+    td.team{font-size:21px}
+    td.r{font-size:16px;width:30px}
+    td.tot{font-size:25px;width:56px}
+    td.sn{font-size:20px;width:46px}
   }
 </style>
 </head>
@@ -286,11 +288,13 @@
         : "Matches 4 and 5"})
     ]));
 
-    /* Three columns, not two. Kyle on the club TV, 2026-09-12: "the points are
-       way too small to see. You have plenty of room. Maybe three columns so
-       points can be bigger?" Narrower columns are the trade, so the per-match
-       scores come off the board — the standing is what the room is reading. */
-    var COLS = 3, per = Math.ceil(rows.length/COLS);
+    /* Two columns of 13. Kyle, 2026-09-12: the points were too small to read
+       across the room, then "7 columns, 5 rounds, 1 total points, 1 Sunday
+       points?" — so every match stays on the board. Three columns cannot hold
+       seven numbers and a team name in 600px; two can, and the type is sized
+       to fill the height instead, which is what makes it readable. fit()
+       shrinks it only if the screen is shorter than a television. */
+    var COLS = 2, per = Math.ceil(rows.length/COLS);
     var cols = h("div",{class:"cols"});
     for(var ci = 0; ci < COLS; ci++){
       cols.appendChild(h("div",{class:"col"},[table(rows.slice(ci*per, (ci+1)*per))]));
@@ -328,15 +332,20 @@
   function table(part){
     var head = h("tr",{},[
       h("th",{class:"l",text:""}), h("th",{class:"l",text:"Team"}),
+      h("th",{text:"1"}),h("th",{text:"2"}),h("th",{text:"3"}),h("th",{text:"4"}),h("th",{text:"5"}),
       h("th",{text:"Tot"}), h("th",{text:"Sun"})
     ]);
     var body = part.map(function(r){
-      return h("tr",{class:(r.rank===1?"lead ":"")+(r.sundayPlayed&&r.sunRank===1?"sunlead":"")},[
+      var cells = [
         h("td",{class:"pos",text:String(r.rank)}),
-        h("td",{class:"team",text:r.name}),
-        h("td",{class:"tot",text:show(r.total)}),
-        h("td",{class:"sn",text:r.sundayPlayed?show(r.sunday):"–"})
-      ]);
+        h("td",{class:"team",text:r.name})
+      ];
+      r.rounds.forEach(function(v){
+        cells.push(h("td",{class:"r"+(v===null?" dash":""),text:show(v)}));
+      });
+      cells.push(h("td",{class:"tot",text:show(r.total)}));
+      cells.push(h("td",{class:"sn",text:r.sundayPlayed?show(r.sunday):"–"}));
+      return h("tr",{class:(r.rank===1?"lead ":"")+(r.sundayPlayed&&r.sunRank===1?"sunlead":"")},cells);
     });
     return h("table",{},[h("thead",{},[head]), h("tbody",{},body)]);
   }
