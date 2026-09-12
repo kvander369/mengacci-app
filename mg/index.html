@@ -38,6 +38,7 @@
     font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:26px;letter-spacing:.04em;
     display:flex;align-items:baseline;gap:16px;white-space:nowrap;overflow:hidden}
   .sun .lab{text-transform:uppercase;letter-spacing:.12em;font-size:20px;opacity:.9}
+  .sun .num{color:#7A560F;font-size:32px;font-weight:700}
   .sun .who{color:#7A560F;overflow:hidden;text-overflow:ellipsis}
 
   .cols{flex:1;min-height:0;padding:10px 40px 18px;display:grid;grid-template-columns:1fr 1fr;gap:0 44px;align-items:start;overflow:hidden}
@@ -230,12 +231,12 @@
     /* the Sunday money strip */
     var sunLeaders = P.leaders(rows,"sunday");
     var anySunday = rows.some(function(r){ return r.sundayPlayed > 0; });
-    var sunText = anySunday
-      ? sunLeaders.map(function(r){ return r.name; }).join("  ·  ") + "   " + sunLeaders[0].sunday
-      : "Matches 4 and 5";
     scr.appendChild(h("div",{class:"sun"},[
       h("span",{class:"lab",text:"Sunday money"}),
-      h("span",{class:"who",text:sunText})
+      anySunday ? h("span",{class:"num",text:String(sunLeaders[0].sunday)}) : null,
+      h("span",{class:"who",text: anySunday
+        ? sunLeaders.map(function(r){ return r.name; }).join("   ·   ")
+        : "Matches 4 and 5"})
     ]));
 
     var half = Math.ceil(rows.length/2);
@@ -244,6 +245,20 @@
       cols.appendChild(h("div",{class:"col"},[table(part)]));
     });
     scr.appendChild(cols);
+    fit(cols);
+  }
+
+  /* A TV is whatever height it is, and a row that falls off the bottom is a
+     team that is not on the board. Shrink until all 25 fit. Only on a big
+     screen: a phone scrolls, which is what a phone should do. */
+  function fit(cols){
+    if(window.innerWidth < 900) return;
+    cols.style.zoom = "";
+    var k = 1, guard = 0;
+    while(cols.scrollHeight > cols.clientHeight + 1 && k > 0.5 && guard++ < 12){
+      k = Math.max(0.5, k * Math.min(0.99, (cols.clientHeight / cols.scrollHeight)));
+      cols.style.zoom = k;
+    }
   }
 
   function table(part){
@@ -354,6 +369,7 @@
   if(ENTRY){ renderEntry(); }
   else{
     renderBoard();
+    window.addEventListener("resize", function(){ renderBoard(); });
     if(MG_API){ pull(); setInterval(pull, EVERY); }
     setInterval(function(){ if(MG_API) renderBoard(); }, 60000);
   }
