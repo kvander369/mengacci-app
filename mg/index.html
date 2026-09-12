@@ -51,15 +51,27 @@
   .prog{flex:none;height:8px;background:var(--green-soft);overflow:hidden}
   .prog .fill{height:100%;width:0;background:var(--green)}
 
-  table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+  /* WIDTHS ARE SHARES, NOT PIXELS, and they add to 100.
+     Kyle's phone, 2026-09-12: "all the names are gone". The numeric columns
+     were sized in fixed pixels — about 870px of them — which is wider than a
+     phone, so the team column was left with nothing and the names were
+     clipped to zero. Both the old layout and my first attempt at fixing it
+     failed the same way, on a narrow screen and on a television whose
+     viewport is smaller than it looks.
+     A share cannot collapse: the team column always gets a third of whatever
+     the screen is. table-layout:fixed makes the browser obey the shares
+     exactly, and it also makes every page of the rotation line up, which was
+     the other complaint. */
+  table{width:100%;table-layout:fixed;border-collapse:collapse;font-variant-numeric:tabular-nums}
+  col.c-pos{width:6%} col.c-team{width:34%} col.c-r{width:7%} col.c-tot{width:13%} col.c-sun{width:12%}
   th{font-family:"Barlow Condensed",sans-serif;font-weight:600;letter-spacing:.08em;text-transform:uppercase;font-size:calc(19px * var(--k));color:var(--muted);text-align:right;padding:4px 5px;border-bottom:2px solid var(--line)}
   th.l{text-align:left}
-  td{padding:calc(7px * var(--k)) 5px;border-bottom:1px solid var(--line);white-space:nowrap}
-  td.pos{font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:calc(38px * var(--k));color:var(--muted);text-align:right;width:calc(70px * var(--k))}
-  td.team{font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:calc(52px * var(--k));overflow:hidden;text-overflow:ellipsis;max-width:0;width:99%}
-  td.r{font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:calc(46px * var(--k));color:var(--ink);text-align:right;width:calc(92px * var(--k))}
-  td.tot{font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:calc(62px * var(--k));text-align:right;width:calc(130px * var(--k))}
-  td.sn{font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:calc(46px * var(--k));text-align:right;width:calc(100px * var(--k));color:var(--gold)}
+  td{padding:calc(7px * var(--k)) 5px;border-bottom:1px solid var(--line);white-space:nowrap;overflow:hidden}
+  td.pos{font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:calc(38px * var(--k));color:var(--muted);text-align:right}
+  td.team{font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:calc(52px * var(--k));text-overflow:ellipsis}
+  td.r{font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:calc(46px * var(--k));color:var(--ink);text-align:right}
+  td.tot{font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:calc(62px * var(--k));text-align:right}
+  td.sn{font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:calc(46px * var(--k));text-align:right;color:var(--gold)}
   th{font-size:calc(24px * var(--k))}
   tr.lead td{background:var(--green-soft)}
   tr.lead td.pos,tr.lead td.tot{color:var(--green)}
@@ -123,11 +135,12 @@
     .sun .lab{font-size:15px}
     .cols{grid-template-columns:1fr;padding:8px 12px 24px;overflow:visible}
     .col+.col{border-left:0;padding-left:0;border-top:5px solid var(--green-soft);padding-top:10px}
-    td.pos{font-size:18px;width:30px}
+    col.c-pos{width:8%} col.c-team{width:40%} col.c-r{width:6%} col.c-tot{width:12%} col.c-sun{width:10%}
+    td.pos{font-size:18px}
     td.team{font-size:21px}
-    td.r{font-size:16px;width:30px}
-    td.tot{font-size:25px;width:56px}
-    td.sn{font-size:20px;width:46px}
+    td.r{font-size:16px}
+    td.tot{font-size:25px}
+    td.sn{font-size:20px}
   }
 </style>
 </head>
@@ -402,6 +415,11 @@
   }
 
   function table(part){
+    /* One colgroup so the shares are declared once. The team column is the
+       widest share on purpose: a name is the only thing on this board that
+       cannot be guessed from context. */
+    var CLS = ["c-pos","c-team","c-r","c-r","c-r","c-r","c-r","c-tot","c-sun"];
+    var group = h("colgroup",{}, CLS.map(function(c){ return h("col",{class:c}); }));
     var head = h("tr",{},[
       h("th",{class:"l",text:""}), h("th",{class:"l",text:"Team"}),
       h("th",{text:"1"}),h("th",{text:"2"}),h("th",{text:"3"}),h("th",{text:"4"}),h("th",{text:"5"}),
@@ -420,7 +438,7 @@
       cells.push(h("td",{class:"sn",text:r.sundayPlayed?show(r.sunday):"–"}));
       return h("tr",{class:(r.rank===1?"lead ":"")+(r.sundayPlayed&&r.sunRank===1?"sunlead":"")},cells);
     });
-    return h("table",{},[h("thead",{},[head]), h("tbody",{},body)]);
+    return h("table",{},[group, h("thead",{},[head]), h("tbody",{},body)]);
   }
 
   /* ---------- entry ---------- */
