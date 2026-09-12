@@ -53,13 +53,13 @@
   td{padding:calc(7px * var(--k)) 5px;border-bottom:1px solid var(--line);white-space:nowrap}
   td.pos{font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:calc(26px * var(--k));color:var(--muted);text-align:right;width:46px}
   td.team{font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:calc(33px * var(--k));overflow:hidden;text-overflow:ellipsis;max-width:0;width:99%}
-  td.r{font-family:"Barlow Condensed",sans-serif;font-weight:500;font-size:calc(27px * var(--k));color:var(--muted);text-align:right;width:calc(54px * var(--k))}
+  td.r{font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:calc(34px * var(--k));color:var(--ink);text-align:right;width:calc(66px * var(--k))}
   td.tot{font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:calc(44px * var(--k));text-align:right;width:calc(92px * var(--k))}
   td.sn{font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:calc(34px * var(--k));text-align:right;width:calc(72px * var(--k));color:var(--gold)}
   tr.lead td{background:var(--green-soft)}
   tr.lead td.pos,tr.lead td.tot{color:var(--green)}
   tr.sunlead td.sn{background:var(--gold-soft);font-weight:700}
-  td.dash{color:var(--line)}
+  td.dash{color:var(--line);font-weight:500}
 
   /* ---------- entry ---------- */
   .pad{flex:1;min-height:0;overflow:auto;padding:14px 16px 120px;background:var(--bg)}
@@ -320,7 +320,9 @@
        clientHeight includes padding, and believing it left the last team two
        pixels off the bottom of the TV. SAFE also buys a little room for a
        television that overscans. */
-    var SAFE = 10;
+    /* A television crops the edge of the picture (overscan), so keep a real
+       margin rather than 10px: 3% of the height, never less than 18px. */
+    var SAFE = Math.max(18, Math.round(window.innerHeight * 0.03));
     var top = cols.getBoundingClientRect().top;
     var target = window.innerHeight - SAFE;
     function lowest(){
@@ -523,6 +525,13 @@
   else{
     renderBoard();
     window.addEventListener("resize", function(){ renderBoard(); });
+    /* Measure again once the web font has actually arrived. Barlow Condensed
+       loads after the first paint and the rows grow when it lands, which is
+       what pushed the last teams off the bottom of the club TV on
+       2026-09-12. The timers cover a browser with no document.fonts. */
+    if(document.fonts && document.fonts.ready) document.fonts.ready.then(function(){ renderBoard(); });
+    setTimeout(renderBoard, 600);
+    setTimeout(renderBoard, 2500);
     if(MG_API){ pull(); setInterval(pull, EVERY); }
     setInterval(function(){ if(MG_API) renderBoard(); }, 60000);
   }
