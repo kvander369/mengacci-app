@@ -412,7 +412,17 @@
       h("th",{text:"Tot"}), h("th",{text:"Sun"})
     ]);
     var body = part.map(function(r){
-      if(!r) return h("tr",{class:"pad"},[h("td",{class:"team",text:"\u00a0"})]);
+      /* A filler row must carry the SAME cells as a real one, or the column
+         widths shift and the last page looks broken. Kyle, 2026-09-12: "when
+         it scrolls the third screen is messed up." It was one cell in a
+         nine-column table. */
+      if(!r) return h("tr",{class:"pad"},[
+        h("td",{class:"pos",text:"\u00a0"}),
+        h("td",{class:"team",text:"\u00a0"}),
+        h("td",{class:"r"}),h("td",{class:"r"}),h("td",{class:"r"}),h("td",{class:"r"}),h("td",{class:"r"}),
+        h("td",{class:"tot",text:"\u00a0"}),
+        h("td",{class:"sn",text:"\u00a0"})
+      ]);
       var cells = [
         h("td",{class:"pos",text:String(r.rank)}),
         h("td",{class:"team",text:r.name})
