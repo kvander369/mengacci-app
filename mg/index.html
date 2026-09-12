@@ -43,19 +43,24 @@
   .sun .num{color:#7A560F;font-size:32px;font-weight:700}
   .sun .who{color:#7A560F;overflow:hidden;text-overflow:ellipsis}
 
-  .cols{flex:1;min-height:0;padding:8px 34px 14px;display:grid;grid-template-columns:repeat(2,1fr);gap:0 36px;align-items:start;overflow:hidden}
+  .cols{flex:1;min-height:0;padding:6px 44px 10px;display:grid;grid-template-columns:1fr;align-items:start;overflow:hidden}
   .col{min-width:0}
-  .col+.col{border-left:5px solid var(--green-soft);padding-left:34px}
+  tr.pad td{border-bottom:0}
+
+  /* how long until the page turns */
+  .prog{flex:none;height:8px;background:var(--green-soft);overflow:hidden}
+  .prog .fill{height:100%;width:0;background:var(--green)}
 
   table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
   th{font-family:"Barlow Condensed",sans-serif;font-weight:600;letter-spacing:.08em;text-transform:uppercase;font-size:calc(19px * var(--k));color:var(--muted);text-align:right;padding:4px 5px;border-bottom:2px solid var(--line)}
   th.l{text-align:left}
   td{padding:calc(7px * var(--k)) 5px;border-bottom:1px solid var(--line);white-space:nowrap}
-  td.pos{font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:calc(26px * var(--k));color:var(--muted);text-align:right;width:46px}
-  td.team{font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:calc(33px * var(--k));overflow:hidden;text-overflow:ellipsis;max-width:0;width:99%}
-  td.r{font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:calc(34px * var(--k));color:var(--ink);text-align:right;width:calc(66px * var(--k))}
-  td.tot{font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:calc(44px * var(--k));text-align:right;width:calc(92px * var(--k))}
-  td.sn{font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:calc(34px * var(--k));text-align:right;width:calc(72px * var(--k));color:var(--gold)}
+  td.pos{font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:calc(38px * var(--k));color:var(--muted);text-align:right;width:calc(70px * var(--k))}
+  td.team{font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:calc(52px * var(--k));overflow:hidden;text-overflow:ellipsis;max-width:0;width:99%}
+  td.r{font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:calc(46px * var(--k));color:var(--ink);text-align:right;width:calc(92px * var(--k))}
+  td.tot{font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:calc(62px * var(--k));text-align:right;width:calc(130px * var(--k))}
+  td.sn{font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:calc(46px * var(--k));text-align:right;width:calc(100px * var(--k));color:var(--gold)}
+  th{font-size:calc(24px * var(--k))}
   tr.lead td{background:var(--green-soft)}
   tr.lead td.pos,tr.lead td.tot{color:var(--green)}
   tr.sunlead td.sn{background:var(--gold-soft);font-weight:700}
@@ -182,6 +187,18 @@
   var MG_API = "https://script.google.com/macros/s/AKfycbw756Fq3M4FB9zbR7FWhQiKMozAgSD2W6RjkImAC_4jg7x7l9ykjTzh4ZWUDZcNtbS_/exec";
   var EVERY = 20000, STALE = 120000;
 
+  /* The board rotates. Kyle, 2026-09-12, standing in front of the club TV:
+     the match scores were too small to read across the room. Type size is
+     bounded by row height and row height is the screen divided by the rows on
+     it, so the only way to make everything bigger is to show fewer teams at a
+     time. Nine at a time over three pages is about 45% bigger type than 25 at
+     once, and a 30-second cycle is a short wait to see your own team.
+     ?rows=25 puts them all back on one page; ?secs=n changes the dwell. */
+  var ROWS = 9, SECS = 10;
+  if (/^\d+$/.test(q.get("rows") || "")) ROWS = Math.max(4, Math.min(25, +q.get("rows")));
+  if (/^\d+$/.test(q.get("secs") || "")) SECS = Math.max(3, Math.min(120, +q.get("secs")));
+  var page = 0, lastPosted = "";
+
   var q = new URLSearchParams(location.search);
   if (q.get("api")) MG_API = q.get("api");
   var ENTRY = q.get("enter") === "1";
@@ -266,7 +283,9 @@
     var scr = document.getElementById("screen");
     scr.innerHTML = "";
 
+    var pagesFor = Math.max(1, Math.ceil(TEAMS.length / ROWS));
     var right = [{text: n ? "After match " + n + " of 5" : "No scores yet"}];
+    if(n && pagesFor > 1) right.push({text: (page + 1) + " of " + pagesFor});
     if(MG_API){
       if(lastOK) right.push({text:"Updated " + clock(lastOK), warn:(Date.now()-lastOK > STALE)});
       else if(everFetched) right.push({text:"Waiting for scores"});
@@ -294,18 +313,27 @@
         : "Matches 4 and 5"})
     ]));
 
-    /* Two columns of 13. Kyle, 2026-09-12: the points were too small to read
-       across the room, then "7 columns, 5 rounds, 1 total points, 1 Sunday
-       points?" — so every match stays on the board. Three columns cannot hold
-       seven numbers and a team name in 600px; two can, and the type is sized
-       to fill the height instead, which is what makes it readable. fit()
-       shrinks it only if the screen is shorter than a television. */
-    var COLS = 2, per = Math.ceil(rows.length/COLS);
-    var cols = h("div",{class:"cols"});
-    for(var ci = 0; ci < COLS; ci++){
-      cols.appendChild(h("div",{class:"col"},[table(rows.slice(ci*per, (ci+1)*per))]));
-    }
+    /* One full-width column, ROWS teams at a time. Every page renders the
+       same number of rows — the short last page is padded with blanks — so the
+       type never jumps size as it turns over. */
+    var pages = Math.max(1, Math.ceil(rows.length / ROWS));
+    if(page >= pages) page = 0;
+    var part = rows.slice(page * ROWS, page * ROWS + ROWS);
+    while(part.length < ROWS && pages > 1) part.push(null);
+
+    var cols = h("div",{class:"cols"},[ h("div",{class:"col"},[table(part)]) ]);
     scr.appendChild(cols);
+
+    if(pages > 1){
+      var fill = h("div",{class:"fill"});
+      scr.appendChild(h("div",{class:"prog"},[fill]));
+      /* the bar runs the length of one dwell, so the room can see it is live
+         and about to turn over rather than frozen */
+      requestAnimationFrame(function(){
+        fill.style.transition = "width " + SECS + "s linear";
+        fill.style.width = "100%";
+      });
+    }
     fit(cols);
   }
 
@@ -344,6 +372,7 @@
       h("th",{text:"Tot"}), h("th",{text:"Sun"})
     ]);
     var body = part.map(function(r){
+      if(!r) return h("tr",{class:"pad"},[h("td",{class:"team",text:"\u00a0"})]);
       var cells = [
         h("td",{class:"pos",text:String(r.rank)}),
         h("td",{class:"team",text:r.name})
@@ -511,8 +540,11 @@
         if(j && j.format === "vtp-live-v1" && Array.isArray(j.points)){
           points = j.points;
           if(j.event) setEvent(j.event);
-          lastOK = Date.now(); renderBoard();
-        } else if(j && j.empty){ renderBoard(); }
+          lastOK = Date.now();
+          /* only repaint when the scores actually changed, or every poll would
+             restart the page turn and the board would never advance */
+          if(j.posted !== lastPosted){ lastPosted = j.posted || ""; page = 0; renderBoard(); }
+        } else if(j && j.empty && !lastPosted){ renderBoard(); }
       })
       .catch(function(){ everFetched = true; });
   }
@@ -525,6 +557,10 @@
   else{
     renderBoard();
     window.addEventListener("resize", function(){ renderBoard(); });
+    /* turn the page */
+    if(Math.ceil(TEAMS.length / ROWS) > 1){
+      setInterval(function(){ page++; renderBoard(); }, SECS * 1000);
+    }
     /* Measure again once the web font has actually arrived. Barlow Condensed
        loads after the first paint and the rows grow when it lands, which is
        what pushed the last teams off the bottom of the club TV on
