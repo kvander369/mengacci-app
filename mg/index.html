@@ -238,9 +238,15 @@
   function clock(ms){ var d=new Date(ms), hh=d.getHours()%12||12, m=d.getMinutes(); return hh+":"+(m<10?"0":"")+m; }
 
   function topBand(rightLines){
+    /* Tapping the crest on the board goes to the entry screen, and on the
+       entry screen goes back to the board. Kyle, 2026-09-12: "when I hit
+       board I see it but how do i go back" — the Board button was a one-way
+       door. Nothing is labelled, so the club TV shows no control at all. */
     return h("div",{class:"top"},[
       h("div",{class:"tophead"},[
-        h("img",{class:"logo",src:"ccw-logo.png",alt:"Country Club of Waterbury"}),
+        h("img",{class:"logo",src:"ccw-logo.png",alt:"Country Club of Waterbury",
+          style:"cursor:pointer",
+          onclick:function(){ location.href = ENTRY ? "./" : "./?enter=1"; }}),
         h("div",{},[
           h("div",{class:"eyebrow",text:"Country Club of Waterbury"}),
           h("h1",{text:TITLE}),
@@ -390,7 +396,7 @@
     scr.appendChild(pad);
 
     scr.appendChild(h("div",{class:"bar"},[
-      h("button",{class:"ghost",text:"Board",onclick:function(){ location.search="";}}),
+      h("button",{class:"ghost",text:"Board",onclick:function(){ location.href="./"; }}),
       h("button",{text:"Send to TV",onclick:post})
     ]));
   }
