@@ -8,6 +8,13 @@
  *   - 25 teams, 5 matches. Kyle types the points each team's card came in with.
  *   - The pot goes to the most points over all 5. Ties split.
  *   - "Sunday money" goes to the most points over matches 4 and 5. Ties split.
+ *   - A team that wins the total points pot is NOT eligible for Sunday money.
+ *     Kyle, 2026-09-12: "Folks who win the total points pot are not eligible
+ *     for the Sunday money. And ties split both pots." So if two teams tie for
+ *     the pot, both are out of Sunday money, and Sunday goes to the best score
+ *     over matches 4 and 5 among everyone else — ties there splitting it.
+ *     Mid-round this is provisional, because who wins the pot is not settled
+ *     until the last card is in; the board shows it as it stands.
  * How a point is earned is decided on paper, at the club. This file never
  * knows and never needs to.
  */
@@ -134,8 +141,18 @@
         sundayPlayed: counted(r, SUNDAY)
       };
     });
-    rankBy(rows, 'sunday');
-    return rankBy(rows, 'total');       /* returned in total order */
+    var byTotal = rankBy(rows, 'total');
+
+    /* Sunday money is ranked among the teams still eligible for it: everyone
+       except whoever is winning the pot. An excluded team keeps its sunday
+       points — they are a fact — but has no sunday rank, so nothing on the
+       board can show it as being in line for money it cannot win. */
+    rows.forEach(function (r) { r.potWinner = (r.rank === 1); r.sunEligible = !r.potWinner; });
+    var eligible = rows.filter(function (r) { return r.sunEligible; });
+    rankBy(eligible, 'sunday');
+    rows.forEach(function (r) { if (!r.sunEligible) r.sunRank = null; });
+
+    return byTotal;                     /* returned in total order */
   }
 
   /* the highest match number anybody has a score for: "after Round 3" */
@@ -154,7 +171,8 @@
     return n;
   }
 
-  /* everyone tied at the top, which is who splits the pot */
+  /* everyone tied at the top, which is who splits the pot. For 'sunday' this
+     is already the eligible set, because an excluded team has no sunRank. */
   function leaders(rows, field) {
     var key = field === 'sunday' ? 'sunRank' : 'rank';
     return rows.filter(function (r) { return r[key] === 1; });

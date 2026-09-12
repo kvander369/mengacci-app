@@ -42,6 +42,7 @@
   .sun .lab{text-transform:uppercase;letter-spacing:.12em;font-size:20px;opacity:.9}
   .sun .num{color:#7A560F;font-size:32px;font-weight:700}
   .sun .who{color:#7A560F;overflow:hidden;text-overflow:ellipsis}
+  .sun .why{color:#8A6A2A;font-weight:600;font-size:20px;opacity:.85;white-space:nowrap}
 
   .cols{flex:1;min-height:0;padding:6px 44px 10px;display:grid;grid-template-columns:1fr;align-items:start;overflow:hidden}
   .col{min-width:0}
@@ -72,6 +73,9 @@
   td.r{font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:calc(46px * var(--k));color:var(--ink);text-align:right}
   td.tot{font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:calc(62px * var(--k));text-align:right}
   td.sn{font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:calc(46px * var(--k));text-align:right;color:var(--gold)}
+  /* a team winning the pot cannot win Sunday money: its Sunday points are
+     still shown, because they are a fact, but never in the money colour */
+  td.sn.out{color:var(--muted);opacity:.5}
   th{font-size:calc(24px * var(--k))}
   tr.lead td{background:var(--green-soft)}
   tr.lead td.pos,tr.lead td.tot{color:var(--green)}
@@ -146,7 +150,7 @@
 </head>
 <body>
 <div class="screen" id="screen"></div>
-<script src="points.js?v=e78b983f02"></script>
+<script src="points.js?v=eacb493bdb"></script>
 <script>
 (function(){
   "use strict";
@@ -358,12 +362,19 @@
     /* the Sunday money strip */
     var sunLeaders = Pts.leaders(rows,"sunday");
     var anySunday = rows.some(function(r){ return r.sundayPlayed > 0; });
+    /* Say why only when the rule is actually biting: a team winning the pot
+       has more Sunday points than the team in line for the money. Otherwise
+       the board stays quiet, because nothing needs explaining. */
+    var blocked = anySunday && sunLeaders.length && rows.some(function(r){
+      return !r.sunEligible && r.sundayPlayed && r.sunday > sunLeaders[0].sunday;
+    });
     scr.appendChild(h("div",{class:"sun"},[
       h("span",{class:"lab",text:"Sunday money"}),
-      anySunday ? h("span",{class:"num",text:String(sunLeaders[0].sunday)}) : null,
-      h("span",{class:"who",text: anySunday
+      anySunday && sunLeaders.length ? h("span",{class:"num",text:String(sunLeaders[0].sunday)}) : null,
+      h("span",{class:"who",text: anySunday && sunLeaders.length
         ? sunLeaders.map(function(r){ return r.name; }).join("   ·   ")
-        : "Matches 4 and 5"})
+        : "Matches 4 and 5"}),
+      blocked ? h("span",{class:"why",text:"pot winner not eligible"}) : null
     ]));
 
     /* One full-width column, ROWS teams at a time. Every page renders the
@@ -447,8 +458,8 @@
         cells.push(h("td",{class:"r"+(v===null?" dash":""),text:show(v)}));
       });
       cells.push(h("td",{class:"tot",text:show(r.total)}));
-      cells.push(h("td",{class:"sn",text:r.sundayPlayed?show(r.sunday):"–"}));
-      return h("tr",{class:(r.rank===1?"lead ":"")+(r.sundayPlayed&&r.sunRank===1?"sunlead":"")},cells);
+      cells.push(h("td",{class:"sn"+(r.sunEligible?"":" out"),text:r.sundayPlayed?show(r.sunday):"–"}));
+      return h("tr",{class:(r.rank===1?"lead ":"")+(r.sundayPlayed&&r.sunEligible&&r.sunRank===1?"sunlead":"")},cells);
     });
     return h("table",{},[group, h("thead",{},[head]), h("tbody",{},body)]);
   }
