@@ -836,7 +836,7 @@
      The address and the key live in their OWN localStorage item, never in S,
      so they cannot ride out inside a round backup file. The key is typed on
      this phone once; it is not in the repo and never will be. */
-  var TV_API = "";                 /* filled in when the Apps Script is deployed; not a secret */
+  var TV_API = "https://script.google.com/macros/s/AKfycbw756Fq3M4FB9zbR7FWhQiKMozAgSD2W6RjkImAC_4jg7x7l9ykjTzh4ZWUDZcNtbS_/exec";                 /* filled in when the Apps Script is deployed; not a secret */
   var TV_SOURCE = (LS === "mengacci_v1") ? "real" : "try";
   var TVK = "mengacci_tv";
   var TV = (function(){ try{ var r=localStorage.getItem(TVK); if(r){ var o=JSON.parse(r); if(o) return o; } }catch(e){} return {api:"",key:"",on:false}; })();
