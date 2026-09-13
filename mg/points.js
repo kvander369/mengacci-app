@@ -163,6 +163,8 @@
       else if (smallest === null || m < smallest.m) smallest = { p: p, m: m };
     }
     var s2 = S.second || {};
+    if (s2.on !== false && !money(s2.amount))
+      out.push(secondName(s2.name) + ' is on but has no money');   /* "there will never be zero money for a place" */
     if (s2.on !== false && smallest && money(s2.amount) > smallest.m)
       out.push(secondName(s2.name) + ' (' + dollars(money(s2.amount)) + ') is more than ' + placeName(smallest.p) + ' place (' + dollars(smallest.m) + ')');
     if (c.diff !== 0)
@@ -235,7 +237,14 @@
        team that gets money. When the prizes are known, a place typed as $0
        pays nothing, so its team is not a winner; without prizes, standing in a
        paid place is enough. */
+    /* Prizes count only once some money is typed: before that (a new phone,
+       or right after Start a new tournament writes [0,0,0]) every place would
+       read as $0, the leader would be "not a winner", and the board would name
+       the pot leader for Sunday money — Fable's review, 2026-09-13. And a team
+       is paid only if its own share is more than nothing, which is what a
+       team feels, not the group's total. */
     var prizes = Array.isArray(opts.prizes) ? opts.prizes.map(money) : null;
+    if (prizes && !prizes.some(function (m) { return m > 0; })) prizes = null;
     var sizes = {};
     list.forEach(function (r) { sizes[r.total] = (sizes[r.total] || 0) + 1; });
     list.forEach(function (r) {
@@ -243,14 +252,17 @@
       if (paid && prizes) {
         var got = 0;
         for (var p = r.rank; p <= Math.min(N, r.rank + sizes[r.total] - 1); p++) got += prizes[p - 1] || 0;
-        paid = got > 0;
+        paid = Math.floor(got / sizes[r.total]) > 0;
       }
       r.paidPlace = paid;
       r.potWinner = r.paidPlace;
       r.sunEligible = second && !r.paidPlace;
     });
-    rankBy(list.filter(function (r) { return r.sunEligible; }), 'sunday');
-    list.forEach(function (r) { if (!r.sunEligible) r.sunRank = null; });
+    /* The second pot is ranked among the eligible teams that have a score in
+       it: a team with nothing entered for the last two matches sums to 0,
+       which beat a team on -3 that actually played (Fable's review). */
+    rankBy(list.filter(function (r) { return r.sunEligible && r.sundayPlayed > 0; }), 'sunday');
+    list.forEach(function (r) { if (!r.sunEligible || !(r.sundayPlayed > 0)) r.sunRank = null; });
 
     return byTotal;                     /* in total order */
   }

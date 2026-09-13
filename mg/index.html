@@ -34,7 +34,7 @@
   .eyebrow{font-family:"Barlow Condensed",sans-serif;font-weight:600;letter-spacing:.14em;text-transform:uppercase;font-size:19px;opacity:.85}
   .event{font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:27px;opacity:.9;margin-top:1px}
   .top .right{font-family:"Barlow Condensed",sans-serif;font-size:22px;font-weight:600;text-align:right;opacity:.92;white-space:nowrap;line-height:1.25}
-  .top .right .warn{color:var(--gold-soft)}
+  .top .right .warn{background:var(--gold);color:#1B1408;font-weight:700;padding:3px 12px;border-radius:999px;display:inline-block}
 
   /* ---------- the board ---------- */
   .sun{background:var(--gold-soft);color:var(--gold);flex:none;padding:8px 40px;
@@ -160,6 +160,8 @@
   .setup input{width:100%;font-size:16px;padding:10px;border:2px solid var(--line);border-radius:8px}
 
   .blank{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;text-align:center;padding:40px}
+  /* the page's version, small, bottom right of the board: is the club TV on the reload? */
+  .stamp{position:fixed;right:10px;bottom:6px;font-size:13px;color:var(--muted);opacity:.7;pointer-events:none}
   .blank .big{font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:56px;line-height:1;color:var(--muted)}
   .blank .sub{font-size:22px;color:var(--muted);max-width:26em}
 
@@ -190,7 +192,7 @@
 </head>
 <body>
 <div class="screen" id="screen"></div>
-<script src="points.js?v=47d97c1d9e"></script>
+<script src="points.js?v=2b28e832fd"></script>
 <script src="record.js?v=35df223091"></script>
 <script>
 (function(){
@@ -231,11 +233,13 @@
   if(!Pts.payout) Pts.payout = function(){ return { main:[], second:null, byTeam:{} }; };
   if(!Pts.placeName) Pts.placeName = function(p){ return ["","1st","2nd","3rd"][p] || (p+"th"); };
 
-  /* The 25 teams of the 3-Day Member Guest, 2026-09-12 — the list a phone
-     starts with the first time it opens this version. After that the teams are
-     the phone's own, typed on the Teams tab or filled from a link, and the
-     board takes them from what the phone sends. mg/teams.json is this list. */
-  var TEAMS_DEFAULT = [
+  /* A phone starts with NO teams: the next event has its own field, typed on
+     the Teams tab, filled from a link, or taken from the TV. Until 2026-09-13
+     it started with the 25 teams of the 3-Day Member Guest, a wrong roster
+     Kyle would have had to notice and clear (Fable's review). That list is
+     still mg/teams.json, which the Mengacci board's stand-in feed uses. */
+  var TEAMS_DEFAULT = [];
+  var TEAMS_2026_09_12 = [
     ["Ryan Wessendorf","Mike Grieder"],
     ["Gary Valimont","Carl Valimont"],
     ["Pete Heintz","Martin Pelatowski"],
@@ -291,9 +295,14 @@
   var MG_API = "https://script.google.com/macros/s/AKfycbw756Fq3M4FB9zbR7FWhQiKMozAgSD2W6RjkImAC_4jg7x7l9ykjTzh4ZWUDZcNtbS_/exec";
   var EVERY = 20000, STALE = 120000;
 
+  /* Which version this page is: shown small on the board and in Setup, and
+     in the tab title, so "did the club TV take the reload?" has an answer
+     (Fable's review, 2026-09-13). Bump it when the page changes. */
+  var MG_VERSION = "v2.1";
   var q = new URLSearchParams(location.search);
   if (q.get("api")) MG_API = q.get("api");
   var ENTRY = q.get("enter") === "1";
+  try{ document.title = (ENTRY ? "Points pot entry" : "Points pot board") + " · " + MG_VERSION; }catch(e){}
 
   /* The board rotates. Kyle, 2026-09-12, standing in front of the club TV:
      the match scores were too small to read across the room. Type size is
@@ -447,12 +456,16 @@
     if(part) right.push({text: inThis + " of " + TEAMS.length + " in", warn:true});
     if(n && pagesFor > 1) right.push({text: (page + 1) + " of " + pagesFor});
     if(MG_API){
-      if(lastOK) right.push({text:"Updated " + clock(lastOK), warn:(Date.now()-lastOK > STALE)});
+      /* a frozen board must say so in a way that reads across the room: a solid
+         gold block, not a tint of white (Fable's review, 2026-09-13) */
+      var stale = lastOK && (Date.now()-lastOK > STALE);
+      if(lastOK) right.push({text:(stale ? "NOT UPDATING · scores as of " : "Updated ") + clock(lastOK), warn:stale});
       else if(everFetched) right.push({text:"Waiting for scores"});
     } else {
       right.push({text: TEAMS.length + " teams"});
     }
     scr.appendChild(topBand(right));
+    scr.appendChild(h("div",{class:"stamp",text:MG_VERSION}));
 
     if(!n){
       scr.appendChild(h("div",{class:"blank"},[
@@ -549,7 +562,7 @@
      team that is not on the board. Shrink until they fit. Only on a big
      screen: a phone scrolls, which is what a phone should do. Returns -1 when
      everything fits, otherwise how many rows fit at the smallest type. */
-  var rowCap = 999;
+  var rowCap = 999, lastTeamCount = -1;
   function fit(cols){
     var root = document.documentElement;
     root.style.setProperty("--k", "1");
@@ -624,7 +637,7 @@
   function renderEntry(){
     var scr = document.getElementById("screen");
     scr.innerHTML = "";
-    scr.appendChild(topBand([{text:"Entry"},{text:postState||(MG_API?"TV connected":"This phone only")}]));
+    scr.appendChild(topBand([{text:"Entry · " + MG_VERSION},{text:postState||(MG_API?"TV connected":"This phone only")}]));
 
     var tabs = h("div",{class:"tabs"});
     [["scores","Scores"],["teams","Teams"],["setup","Setup"]].forEach(function(t){
@@ -723,7 +736,7 @@
     if(!box) return;
     var c = Pts.purse(teamCount(), localSetup()), bad = Pts.moneyProblems(teamCount(), localSetup());
     box.textContent = bad.length
-      ? bad.join(". ") + "." + (getFinal() ? " Final is on, but the TV shows no money until this is fixed." : "")
+      ? bad.join(". ") + "." + (getFinal() ? " Final is on: the TV keeps the money it was last sent, and shows none if this is sent as it is." : "")
       : purseText(c);
     box.className = bad.length ? "warnbox" : "note";
     box.style.padding = bad.length ? "" : "10px 0 0";
@@ -828,9 +841,10 @@
       function(v){ return v ? "On" : "Off"; }));
     if(S2.on){
       money.push(label("Its name"));
+      var amtLabel = label(S2.name + " — whole dollars");
       money.push(h("input",{type:"text",value:S2.name,
-        onchange:function(){ var s = getSecond(); s.name = Pts.secondName(this.value); setSecond(s); SETUP = localSetup(); }}));
-      money.push(label(S2.name + " — whole dollars"));
+        onchange:function(){ var s = getSecond(); s.name = Pts.secondName(this.value); setSecond(s); SETUP = localSetup(); amtLabel.textContent = s.name + " — whole dollars"; }}));
+      money.push(amtLabel);
       money.push(h("input",{type:"number",inputmode:"numeric",min:"0",step:"1",value:(S2.amount ? String(S2.amount) : ""),placeholder:"e.g. 500",
         oninput:function(){ var s = getSecond(); s.amount = Pts.money(this.value); setSecond(s); SETUP = localSetup(); showPurse(); }}));
     }
@@ -900,7 +914,7 @@
        ["Cancel", null]]);
   }
   function startNew(clearTeams){
-    if(clearTeams){ TEAMS = []; setTeams(TEAMS); }
+    if(clearTeams){ TEAMS = []; setTeams(TEAMS); sendEmpty = true; }   /* the one time an empty send is meant */
     points = fitPoints([], TEAMS.length); save();
     setFinal(false); setPrizes([0,0,0]);
     var s = getSecond(); s.amount = 0; setSecond(s);
@@ -947,8 +961,13 @@
      it from safari and it wiped out all the scores" — an iPhone home-screen app
      gets its own storage. The channel is the copy that survives a phone. It
      only ever lands on an empty screen, so it cannot wipe work in hand. */
-  /* a phone that has never saved a team list or a score */
-  function freshPhone(){ return read(TEAMSTORE) === null && empty(); }
+  /* a phone that has never saved a team list, a setting or a score. The Setup
+     tab never writes the team list, so "no team list" alone let a phone pull
+     the TV's copy over its freshly typed money on every open (Fable's review). */
+  function freshPhone(){
+    var touched = [TEAMSTORE, PRIZESTORE, SECONDSTORE, PLACESTORE, ROUNDSTORE, EVSTORE, TITLESTORE, FINALSTORE].some(function(k){ return read(k) !== null; });
+    return !touched && empty();
+  }
   function grab(){
     if(!MG_API){ flash("No TV address"); return; }
     flash("Getting…");
@@ -1068,8 +1087,10 @@
           h("button",{text:"⌫",onclick:function(){ typed = typed.slice(0, -1); draw(); }}),
           h("button",{text:"Clear",onclick:function(){ setVal(i,null); close(); }}),
           h("button",{class:"save",text:"Save",onclick:function(){
+            /* nothing typed is nothing to save: Clear is the button that empties a score */
+            if(typed === "" || typed === "-"){ close(); return; }
             var v = Pts.score(typed);
-            if(typed !== "" && v === null){ disp.textContent = "Not a number"; return; }
+            if(v === null){ disp.textContent = "Not a number"; return; }
             setVal(i, v); close();
           }})
         ])
@@ -1141,19 +1162,29 @@
       teams:t, points:p
     };
   }
+  var sendEmpty = false, posting = false;
   function post(){
     if(!MG_API){ flash("No TV address set yet"); return; }
     if(!getKey()){ flash("Type the TV key first"); return; }
+    var round = roundToSend();
+    /* An emptied phone never sends: the channel is the only copy of the event,
+       and one tap wiped a live 25-team board in Fable's review (2026-09-13).
+       Clearing the teams on purpose (Start a new tournament) gets one send. */
+    if(!round.teams.length && !sendEmpty){ flash("Nothing to send: no teams on this phone"); return; }
+    if(posting){ flash("Still sending…"); return; }
     /* no tidying here: dropping a blank team while the Teams tab is on screen
        left its boxes pointing at the wrong team. roundToSend leaves blanks out. */
-    flash("Sending…");
+    posting = true; flash("Sending…");
+    var ctl = (typeof AbortController !== "undefined") ? new AbortController() : null;
+    var timer = ctl ? setTimeout(function(){ ctl.abort(); }, 20000) : null;
     fetch(MG_API, {
-      method:"POST", redirect:"follow",
+      method:"POST", redirect:"follow", signal: ctl ? ctl.signal : undefined,
       headers:{"Content-Type":"text/plain;charset=utf-8"},
-      body: JSON.stringify({ key:getKey(), board:"vtp", round:roundToSend() })
+      body: JSON.stringify({ key:getKey(), board:"vtp", round:round })
     }).then(function(r){ return r.json(); })
-      .then(function(j){ flash(j && j.ok ? "Sent to TV" : "Not sent: " + ((j&&j.error)||"?")); })
-      .catch(function(e){ flash("Not sent: " + e.message); });
+      .then(function(j){ if(j && j.ok){ sendEmpty = false; flash("Sent to TV ✓ " + clock(Date.now())); } else flash("Not sent: " + ((j&&j.error)||"?")); })
+      .catch(function(e){ flash("Not sent: " + (e && e.name === "AbortError" ? "no answer" : e.message)); })
+      .then(function(){ posting = false; if(timer) clearTimeout(timer); });
   }
   function flash(m){ postState = m; var t = document.querySelector(".top .right"); if(t) t.lastChild.textContent = m; }
 
@@ -1183,6 +1214,8 @@
           if(changed){ rowCap = 999; arm(); }
           /* only repaint when the scores actually changed, or every poll would
              restart the page turn and the board would never advance */
+          /* a new team count means a new fit: the rows-a-page cap is measured again */
+          if(TEAMS.length !== lastTeamCount){ lastTeamCount = TEAMS.length; rowCap = 999; }
           if(changed || j.posted !== lastPosted){ lastPosted = j.posted || ""; page = 0; renderBoard(); }
         } else if(j && j.empty && !lastPosted){ renderBoard(); }
       })
