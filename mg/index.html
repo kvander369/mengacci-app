@@ -404,7 +404,12 @@
     var blocked = anySunday && sunLeaders.length && rows.some(function(r){
       return !r.sunEligible && r.sundayPlayed && r.sunday > sunLeaders[0].sunday;
     });
-    if(turn % 2 === 0) scr.appendChild(h("div",{class:"sun pot"},[
+    /* ...but only once final. Kyle, 2026-09-13: "the green banner names the
+       top of the leaderboard without the tournament being done. Maybe we
+       shouldn't do that. Just keep them shaded". Until Final is sent the
+       banner is Sunday money on every turn and the pot leader is only the
+       green row in the list. */
+    if(PURSE.final && turn % 2 === 0) scr.appendChild(h("div",{class:"sun pot"},[
       h("span",{class:"lab",text:"Total points pot"}),
       h("span",{class:"num",text:show(potLeaders[0].total)}),
       h("span",{class:"who",text:potLeaders.map(function(r){ return r.name; }).join("   ·   ")}),
