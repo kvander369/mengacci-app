@@ -1230,10 +1230,21 @@
   }
 
   /* ---------- version stamp: what this phone is actually running ---------- */
-  var versionText="not installed";
-  function showVersion(){ var el=document.getElementById("stamp"); if(el) el.textContent="version "+versionText; }
+  /* The version of THIS screen, not of the offline copy. The stamp used to show
+     the offline copy's version, so Kyle's phone said v10 while the v9 screen was
+     still running and still said "random order" (2026-09-13). test/walk.js
+     fails if this and CACHE in sw.js ever differ. */
+  var APP_VERSION = "mengacci-v11";
+  var versionText="not installed", swVersion=null;
+  function showVersion(){
+    var el=document.getElementById("stamp"); if(!el) return;
+    var mine=APP_VERSION.replace(/^mengacci-/,"");
+    var ready=swVersion && swVersion!==APP_VERSION ? swVersion.replace(/^mengacci-/,"") : null;
+    el.textContent = "version "+mine + (ready ? " · "+ready+" is ready: close the app and open it again" : "");
+    if(ready) el.style.color="var(--dead)";
+  }
   if(typeof navigator!=="undefined" && "serviceWorker" in navigator){
-    navigator.serviceWorker.addEventListener("message", function(e){ if(e.data && e.data.version){ versionText=String(e.data.version).replace(/^mengacci-/,""); showVersion(); } });
+    navigator.serviceWorker.addEventListener("message", function(e){ if(e.data && e.data.version){ swVersion=String(e.data.version); versionText=swVersion.replace(/^mengacci-/,""); showVersion(); } });
     navigator.serviceWorker.register("./sw.js").then(function(){ var c=navigator.serviceWorker.controller; if(c) c.postMessage("version"); else versionText="first visit, installing"; showVersion(); }).catch(function(){ versionText="install failed"; showVersion(); });
     /* the worker takes over after installing: ask it again, or the stamp says "installing" for good */
     navigator.serviceWorker.addEventListener("controllerchange", function(){ var c=navigator.serviceWorker.controller; if(c) c.postMessage("version"); });
