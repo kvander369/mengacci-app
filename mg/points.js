@@ -178,7 +178,24 @@
     return rows.filter(function (r) { return r[key] === 1; });
   }
 
+  /* Prize money, shown once Kyle marks the event final. Kyle, 2026-09-13:
+     "In this case i would input 2000 for total  500 for Sunday", and on a
+     split that does not come out even, "Round down if change" — so $500
+     among six teams is $83 each and the $2 is his to hand out. Whole dollars
+     only; anything that is not a positive amount is no amount, and no amount
+     shows nothing. */
+  function money(v) {
+    v = Math.floor(Number(v));
+    return (isFinite(v) && v > 0 && v <= 1000000) ? v : 0;
+  }
+  function share(total, n) {
+    total = money(total); n = parseInt(n, 10);
+    return (total && n > 0) ? Math.floor(total / n) : 0;
+  }
+  function dollars(v) { return '$' + String(v).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
+
   var API = {
+    money: money, share: share, dollars: dollars,
     ROUNDS: ROUNDS, SUNDAY: SUNDAY, STEPS: STEPS, STEP: STEP, MAX: MAX,
     step: step, max: max, scale: scale, onScale: onScale,
     ROWS_DEFAULT: ROWS_DEFAULT, SECS_DEFAULT: SECS_DEFAULT,

@@ -43,6 +43,12 @@
   .sun .num{color:#7A560F;font-size:32px;font-weight:700}
   .sun .who{color:#7A560F;overflow:hidden;text-overflow:ellipsis}
   .sun .why{color:#8A6A2A;font-weight:600;font-size:20px;opacity:.85;white-space:nowrap}
+  /* the prize money sits at the right end of the banner, once marked final */
+  .sun .who{min-width:0}
+  .sun .amt{margin-left:auto;flex:none;padding-left:24px;font-size:34px;color:#7A560F}
+  /* the banner's other turn: the total points pot, in the pot's green */
+  .sun.pot{background:var(--green-soft);color:var(--green)}
+  .sun.pot .num,.sun.pot .who,.sun.pot .amt{color:var(--green)}
 
   .cols{flex:1;min-height:0;padding:6px 44px 10px;display:grid;grid-template-columns:1fr;align-items:start;overflow:hidden}
   .col{min-width:0}
@@ -158,7 +164,7 @@
 </head>
 <body>
 <div class="screen" id="screen"></div>
-<script src="points.js?v=eacb493bdb"></script>
+<script src="points.js?v=21db17c6ae"></script>
 <script>
 (function(){
   "use strict";
@@ -183,6 +189,9 @@
   if(!Pts.onScale) Pts.onScale = function(v,st,mx){ if(v===null||v===undefined||v==="") return false;
     st=Pts.step(st); v=Number(v); if(!isFinite(v)||v<0||v>Pts.max(mx)) return false;
     var u=v/st; return Math.abs(u-Math.round(u))<1e-9; };
+  if(!Pts.money) Pts.money = function(v){ v=Math.floor(Number(v)); return (isFinite(v)&&v>0&&v<=1000000)?v:0; };
+  if(!Pts.share) Pts.share = function(t,n){ t=Pts.money(t); n=parseInt(n,10); return (t&&n>0)?Math.floor(t/n):0; };
+  if(!Pts.dollars) Pts.dollars = function(v){ return "$"+String(v).replace(/\B(?=(\d{3})+(?!\d))/g,","); };
 
   /* The 25 teams, as Kyle sent them 2026-09-12. Fixed for the weekend: there
      is no roster screen, because there is nothing to change. mg/teams.json is
@@ -226,6 +235,7 @@
   var EVSTORE = "vtp_event";
   var STEPSTORE = "vtp_step", MAXSTORE = "vtp_max";
   var ROWSTORE = "vtp_rows", SECSTORE = "vtp_secs";
+  var POTSTORE = "vtp_pot", SUNSTORE = "vtp_sun", FINALSTORE = "vtp_final";
   var STORE = "vtp_2026";           /* its own key. The Mengacci app's round is
                                        stored under a different one and this page
                                        never reads or writes it. */
@@ -259,6 +269,11 @@
     if(!secsLocked && localStorage.getItem("vtp_secs")) SECS = Pts.secs(localStorage.getItem("vtp_secs"));
   }catch(e){}
   var page = 0, lastPosted = "", pageTimer = null;
+  /* the banner's turn, counted apart from the page: see renderBoard */
+  var turn = 0;
+  /* the prize money and whether to show it: this phone's settings, replaced
+     by whatever the channel carries once the board hears from it */
+  var PURSE = { pot:getPot(), sun:getSun(), final:getFinal() };
 
   var round0 = 0;
   var points = load();
@@ -368,7 +383,19 @@
       return;
     }
 
-    /* the Sunday money strip */
+    /* ONE BANNER, TAKING TURNS: the total points pot, then Sunday money.
+       Kyle, 2026-09-13, choosing between two banners stacked and one taking
+       turns: "One banner taking turns might be easiest." A second banner would
+       take height from the list and shrink every row; this one leaves the list
+       exactly as it was proven on the club TV. It turns on every turn of the
+       page, not on the page number, because with three pages the page number
+       would show the pot twice running. The money shows at the right end only
+       once Kyle marks the event final, split among ties and rounded down. */
+    var potLeaders = Pts.leaders(rows,"total");
+    function amt(total, n){
+      var v = PURSE.final ? Pts.share(total, n) : 0;
+      return v ? h("span",{class:"amt",text:Pts.dollars(v) + (n > 1 ? " each" : "")}) : null;
+    }
     var sunLeaders = Pts.leaders(rows,"sunday");
     var anySunday = rows.some(function(r){ return r.sundayPlayed > 0; });
     /* Say why only when the rule is actually biting: a team winning the pot
@@ -377,13 +404,20 @@
     var blocked = anySunday && sunLeaders.length && rows.some(function(r){
       return !r.sunEligible && r.sundayPlayed && r.sunday > sunLeaders[0].sunday;
     });
-    scr.appendChild(h("div",{class:"sun"},[
+    if(turn % 2 === 0) scr.appendChild(h("div",{class:"sun pot"},[
+      h("span",{class:"lab",text:"Total points pot"}),
+      h("span",{class:"num",text:show(potLeaders[0].total)}),
+      h("span",{class:"who",text:potLeaders.map(function(r){ return r.name; }).join("   ·   ")}),
+      amt(PURSE.pot, potLeaders.length)
+    ]));
+    else scr.appendChild(h("div",{class:"sun"},[
       h("span",{class:"lab",text:"Sunday money"}),
       anySunday && sunLeaders.length ? h("span",{class:"num",text:String(sunLeaders[0].sunday)}) : null,
       h("span",{class:"who",text: anySunday && sunLeaders.length
         ? sunLeaders.map(function(r){ return r.name; }).join("   ·   ")
         : "Matches 4 and 5"}),
-      blocked ? h("span",{class:"why",text:"pot winner not eligible"}) : null
+      blocked ? h("span",{class:"why",text:"pot winner not eligible"}) : null,
+      amt(PURSE.sun, anySunday ? sunLeaders.length : 0)
     ]));
 
     /* One full-width column, ROWS teams at a time. Every page renders the
@@ -523,6 +557,15 @@
       h("label",{text:"TV board — seconds a page",style:"margin-top:12px"}),
       choiceButtons(Pts.SECS_CHOICES, getSecs(), function(v){ setSecs(v); renderEntry(); },
         function(v){ return String(v); }),
+      h("label",{text:"Pot money — whole dollars",style:"margin-top:12px"}),
+      h("input",{type:"number",inputmode:"numeric",min:"0",step:"1",value:(getPot()?String(getPot()):""),placeholder:"e.g. 2000",
+        onchange:function(){ setPot(this.value); renderEntry(); }}),
+      h("label",{text:"Sunday money — whole dollars",style:"margin-top:12px"}),
+      h("input",{type:"number",inputmode:"numeric",min:"0",step:"1",value:(getSun()?String(getSun()):""),placeholder:"e.g. 500",
+        onchange:function(){ setSun(this.value); renderEntry(); }}),
+      h("label",{text:"TV board — show the money",style:"margin-top:12px"}),
+      choiceButtons([false, true], getFinal(), function(v){ setFinal(v); renderEntry(); },
+        function(v){ return v ? "Final — show it" : "Not yet"; }),
       h("div",{class:"note",style:"padding:8px 0 0",
         text:"These reach the club screen the next time you Send to TV."})
     ]);
@@ -622,6 +665,12 @@
   function setRows(v){ try{ localStorage.setItem(ROWSTORE, String(Pts.rows(v))); }catch(e){} }
   function getSecs(){ try{ return Pts.secs(localStorage.getItem(SECSTORE)); }catch(e){ return Pts.SECS_DEFAULT; } }
   function setSecs(v){ try{ localStorage.setItem(SECSTORE, String(Pts.secs(v))); }catch(e){} }
+  function getPot(){ try{ return Pts.money(localStorage.getItem(POTSTORE)); }catch(e){ return 0; } }
+  function setPot(v){ try{ localStorage.setItem(POTSTORE, String(Pts.money(v))); }catch(e){} }
+  function getSun(){ try{ return Pts.money(localStorage.getItem(SUNSTORE)); }catch(e){ return 0; } }
+  function setSun(v){ try{ localStorage.setItem(SUNSTORE, String(Pts.money(v))); }catch(e){} }
+  function getFinal(){ try{ return localStorage.getItem(FINALSTORE) === "1"; }catch(e){ return false; } }
+  function setFinal(v){ try{ localStorage.setItem(FINALSTORE, v ? "1" : "0"); }catch(e){} }
   function getStep(){ try{ return Pts.step(localStorage.getItem(STEPSTORE)); }catch(e){ return Pts.STEP; } }
   function setStep(v){ try{ localStorage.setItem(STEPSTORE, String(Pts.step(v))); }catch(e){} }
   function getMax(){ try{ return Pts.max(localStorage.getItem(MAXSTORE)); }catch(e){ return Pts.MAX; } }
@@ -643,7 +692,7 @@
       headers:{"Content-Type":"text/plain;charset=utf-8"},
       body: JSON.stringify({ key:getKey(), board:"vtp", round:{
         format:"vtp-live-v1", title:getTitle(), event:getEvent(), posted:new Date().toISOString(),
-        rows:getRows(), secs:getSecs(),
+        rows:getRows(), secs:getSecs(), pot:getPot(), sun:getSun(), final:getFinal(),
         teams:TEAMS, points:points
       }})
     }).then(function(r){ return r.json(); })
@@ -662,6 +711,7 @@
           points = j.points;
           if(j.event) setEvent(j.event);
           if(j.title) setTitle(j.title);
+          PURSE = { pot:Pts.money(j.pot), sun:Pts.money(j.sun), final:j.final === true };
           lastOK = Date.now();
           /* the phone decides how the board rotates; an address overrides it */
           var changed = false;
@@ -680,9 +730,9 @@
      effect on the next send rather than on the next reload. */
   function arm(){
     if(pageTimer){ clearInterval(pageTimer); pageTimer = null; }
-    if(Math.ceil(TEAMS.length / ROWS) > 1){
-      pageTimer = setInterval(function(){ page++; renderBoard(); }, SECS * 1000);
-    }
+    /* One timer turns the page and the banner together. With every team on
+       one page there is no page to turn, but the banner still takes turns. */
+    pageTimer = setInterval(function(){ page++; turn++; renderBoard(); }, SECS * 1000);
   }
 
   /* ---------- keep the television awake ----------
