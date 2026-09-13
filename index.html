@@ -376,9 +376,15 @@
     /* Start a new round: the fresh start. Asks first. Clears the round, keeps the roster. There is no past (DESIGN.md). */
     kids.push(h("div",{class:"sect",text:"New round"}));
     if(!S.confirmNew) kids.push(h("button",{class:"btn quiet sm",text:"Start a new round",onclick:function(){ S.confirmNew=true; render(); }}));
-    else kids.push(h("div",{class:"check bad"},[ h("div",{class:"t",text:"Start a new round? The board, every card, the card photos and the teams are cleared. The roster stays. Back up this round first if you want its files."}),
-      h("div",{class:"row"},[ h("button",{class:"btn danger sm",text:"Yes, new round",onclick:function(){ S.cards=[]; S.parked=[]; S.draft=null; S.teams=[]; S.withdrawn=[]; S.pickA=null; S.locked=false; S.two=false; S.cutoff=null; S.setup={name:"Mengacci $$",date:"",net:"",gross:"",places:[""]}; S.confirmNew=false; S.backupNote=null; clearPhotos(); render(); }}),
-        h("button",{class:"btn quiet sm",text:"Keep this round",onclick:function(){ S.confirmNew=false; render(); }}) ]) ]));
+    else {
+      /* Keeping the teams is the usual case: a practice round, then the real one
+         with the same field, without making the teams again. */
+      var newRound=function(keepTeams){ S.cards=[]; S.parked=[]; S.draft=null; if(!keepTeams) S.teams=[]; S.withdrawn=[]; S.pickA=null; S.locked=false; S.two=false; S.cutoff=null; S.setup={name:"Mengacci $$",date:"",net:"",gross:"",places:[""]}; S.confirmNew=false; S.backupNote=null; clearPhotos(); render(); };
+      kids.push(h("div",{class:"check bad"},[ h("div",{class:"t",text:"Start a new round? Every score and card photo is cleared, and the pots and places are reset. The roster stays. Back up this round first if you want its files."}),
+        h("button",{class:"btn danger sm",text:"New round · keep the teams",onclick:function(){ newRound(true); }}),
+        h("button",{class:"btn danger sm",text:"New round · clear the teams too",onclick:function(){ newRound(false); }}),
+        h("button",{class:"btn quiet sm",text:"Keep this round",onclick:function(){ S.confirmNew=false; render(); }}) ]));
+    }
 
     /* A phone that lost its round (a crash, or the app added to the home screen
        again, which opens an empty copy) can take it back. Offered only on a
@@ -443,14 +449,16 @@
     kids.push(h("div",{class:"sect",text:"TV board"}));
     kids.push(field("Channel address", TV.api, function(v){ TV.api=v.trim(); tvSave(); }, false));
     kids.push(field("Key", TV.key, function(v){ TV.key=v; tvSave(); var sb=document.getElementById("tvsend"); if(sb) sb.disabled=!TV.api||!TV.key; }, false, {type:"password"}));
+    /* Kyle, 2026-09-13, twice: "there is no 'sent' anywhere!!" — a small grey line
+       was not feedback. The button itself now says Sending… then Sent ✓, and the
+       TV's state sits right under it in the same big coloured box as the lock. */
+    var justSent=tvState.sentAt && Date.now()-tvState.sentAt<8000;
     kids.push(h("div",{class:"row"},[
       h("button",{class:"btn sm "+(TV.on?"":"quiet"),text:TV.on?"Sending to the TV":"Not sending",
         onclick:function(){ TV.on=!TV.on; tvSave(); tvState.next=0; tvState.error=null; render(); if(TV.on) tvPost(true); }}),
-      h("button",{class:"btn quiet sm",id:"tvsend",text:"Send now",disabled:!TV.api||!TV.key,onclick:function(){ tvPost(true); }})
+      h("button",{class:"btn sm "+(justSent?"":"quiet"),id:"tvsend",text:tvState.busy?"Sending…":(justSent?"Sent ✓":"Send now"),disabled:!TV.api||!TV.key,onclick:function(){ tvPost(true); }})
     ]));
-    /* right under the buttons, where the eye is after a tap (it used to sit below the rotation settings) */
-    var justSent=tvState.sentAt && Date.now()-tvState.sentAt<6000;
-    kids.push(h("div",{class:"note"+(justSent?" sentnow":""),text:"TV board · "+tvStatus()+(justSent?" ✓":"")}));
+    kids.push(h("div",{class:"check "+((tvState.error||tvState.hold)?"bad":(tvState.sent?"good":"warn"))},[ h("div",{class:"t",text:"TV board · "+tvStatus()}) ]));
     /* The TV already holds a bigger round than this phone: a fresh phone must
        not wipe it by sending its empty one (checker, 2026-09-13). Kyle says. */
     if(tvState.hold) kids.push(h("div",{class:"check bad"},[
@@ -1174,7 +1182,7 @@
                       body:JSON.stringify({ key:TV.key, round:p }) })
         .then(function(res){
           tvState.busy=false;
-          if(res && res.ok){ tvState.sig=sig; tvState.sent=now(); tvState.sentAt=Date.now(); tvState.error=null; tvState.tries=0; tvState.next=0; }
+          if(res && res.ok){ setTimeout(tvRepaint, 8200); tvState.sig=sig; tvState.sent=now(); tvState.sentAt=Date.now(); tvState.error=null; tvState.tries=0; tvState.next=0; }
           else { tvFailed((res && res.error) || "refused"); }
           tvRepaint();
         });
@@ -1195,7 +1203,7 @@
     if(!S.teams.length) return "nothing to send yet";
     if(tvState.busy) return "sending…";
     if(tvState.error) return tvState.error + " · retrying";
-    return tvState.sent ? "sent " + tvState.sent : "waiting to send";
+    return tvState.sent ? "sent at " + tvState.sent : "waiting to send";
   }
   /* Only in a real browser. test/walk.js runs this script in node with a stub
      screen; a live timer there hangs the gate forever, which it did on
