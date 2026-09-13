@@ -323,9 +323,13 @@
       r.onblocked=function(){ setTimeout(function(){ if(!db) res(null); }, 3000); };
     });
   }
-  function putPhoto(id, blob){ return openDB().then(function(d){ if(!d) return; return new Promise(function(res){ var t=d.transaction("photos","readwrite"); t.objectStore("photos").put(blob, String(id)); t.oncomplete=res; t.onerror=res; }); }); }
-  function getPhoto(id){ return openDB().then(function(d){ if(!d) return null; return new Promise(function(res){ var r=d.transaction("photos").objectStore("photos").get(String(id)); r.onsuccess=function(){ res(r.result||null); }; r.onerror=function(){ res(null); }; }); }); }
-  function allPhotos(){ return openDB().then(function(d){ if(!d) return []; return new Promise(function(res){ var out=[], r=d.transaction("photos").objectStore("photos").openCursor(); r.onsuccess=function(){ var c=r.result; if(c){ out.push({id:c.key, blob:c.value}); c.continue(); } else res(out); }; r.onerror=function(){ res(out); }; }); }); }
+  /* photos are keyed "<card id>-f" (front-nine half) and "<card id>-b" (back-nine
+     half). With no database (a browser without one, or the gate's stub) they are
+     kept in memory for the session, so ScannerBot can still be handed them. */
+  var photoMem={};
+  function putPhoto(id, blob){ photoMem[String(id)]=blob; return openDB().then(function(d){ if(!d) return; return new Promise(function(res){ var t=d.transaction("photos","readwrite"); t.objectStore("photos").put(blob, String(id)); t.oncomplete=res; t.onerror=res; }); }); }
+  function getPhoto(id){ return openDB().then(function(d){ if(!d) return photoMem[String(id)]||null; return new Promise(function(res){ var r=d.transaction("photos").objectStore("photos").get(String(id)); r.onsuccess=function(){ res(r.result||photoMem[String(id)]||null); }; r.onerror=function(){ res(photoMem[String(id)]||null); }; }); }); }
+  function allPhotos(){ return openDB().then(function(d){ if(!d) return Object.keys(photoMem).map(function(k){ return {id:k, blob:photoMem[k]}; }); return new Promise(function(res){ var out=[], r=d.transaction("photos").objectStore("photos").openCursor(); r.onsuccess=function(){ var c=r.result; if(c){ out.push({id:c.key, blob:c.value}); c.continue(); } else res(out); }; r.onerror=function(){ res(out); }; }); }); }
 
   /* ---------- people, teams, the day's roster ---------- */
   function fullName(p){ return (p.first+" "+p.last).trim(); }
@@ -409,6 +413,7 @@
         case "verify":return renderVerify();
         case "diff":  return renderDiff();
         case "confirm":return renderConfirm();
+        case "sbpick":return renderSbPick();
         default: d.step="holes"; d.armed=null; return renderHoles();
       }
     }
@@ -517,6 +522,7 @@
     kids.push(h("div",{class:"sect",text:"TV board"}));
     kids.push(field("Channel address", TV.api, function(v){ TV.api=v.trim(); tvSave(); }, false));
     kids.push(field("Key", TV.key, function(v){ TV.key=v; tvSave(); tvRepaint(); }, false, {type:"password"}));
+    kids.push(h("div",{class:"note",text:"The same key lets ScannerBot read card photos."}));
     /* Kyle, 2026-09-13, twice: "there is no 'sent' anywhere!!" — a small grey line
        was not feedback. The button itself now says Sending… then Sent ✓, and the
        TV's state sits right under it in the same big coloured box as the lock. */
@@ -664,10 +670,16 @@
     S.cards.slice().reverse().forEach(function(c){
       var names=c.players.map(first).join(" & ");
       var right;
+      var how=c.method||"?";
       if(c.status==="confirmed") right=h("span",{class:"pill ok",text:"Verified"});
       else if(S.parked.some(function(p){ return p.id===c.id; })) right=h("span",{class:"pill pend",text:"Check parked"});
-      else right=h("button",{class:"btn gold sm",style:"width:auto;padding:8px 10px;font-size:15px",text:"Check now",onclick:function(){ checkLater(c); }});
-      list.appendChild(h("div",{class:"item"},[ h("div",{style:"flex:1"},[h("div",{class:"name",text:names}), h("div",{class:"note",text:"how: "+(c.method||"?")})]), right ]));
+      else if(c.sb && c.sb.done) right=h("button",{class:"btn gold sm",style:"width:auto;padding:8px 10px;font-size:15px",text:"See what ScannerBot read",onclick:function(){ sbCompare(c); }});
+      else {
+        if(c.sb && c.sb.failed) how="ScannerBot: "+c.sb.failed;
+        else if(c.sb) how="ScannerBot is reading it · "+Math.max(0,Math.round((Date.now()-c.sb.sent)/60000))+" min";
+        right=h("button",{class:"btn gold sm",style:"width:auto;padding:8px 10px;font-size:15px",text:"Check now",onclick:function(){ checkLater(c); }});
+      }
+      list.appendChild(h("div",{class:"item"},[ h("div",{style:"flex:1"},[h("div",{class:"name",text:names}), h("div",{class:"note",text:"how: "+how})]), right ]));
     });
     kids.push(list);
     skinsMoney().forEach(function(k){ kids.push(k); });
@@ -687,9 +699,116 @@
      in the list until the check is saved over it: cancelling a check used to
      throw the saved scores away (checker, 2026-09-13). */
   function checkLater(c){
-    var d={id:c.id,step:"verify",players:c.players.slice(),hcp1:{},hcp2:{},s1:{},s2:{},tot:{},notes:(c.notes||[]).slice(),pass:1,pi:0,nine:0,armed:null,buf:"",order:c.players.slice(),res:{},photo:!!c.photo,recheck:true};
+    var d={id:c.id,step:"verify",players:c.players.slice(),hcp1:{},hcp2:{},s1:{},s2:{},tot:{},notes:(c.notes||[]).slice(),pass:1,pi:0,nine:0,armed:null,buf:"",order:c.players.slice(),res:{},photo:!!c.photo,photos:c.photos||null,recheck:true};
     c.players.forEach(function(pid){ d.hcp1[pid]=c.hcp[pid]; d.s1[pid]=c.scores[pid].map(function(v){ return v==null?NONE:v; }); });
     S.draft=d; render();
+  }
+
+  /* ---------- ScannerBot: the card reader, as a checker ----------
+     Talks to the ScannerBot Apps Script (a separate project, kvander369/
+     scannerbot): the two photos go up with the same key as the TV, the
+     reader files its read a minute or three later, and the app fetches it
+     and lays it beside what Kyle typed, hole by hole, exactly like a second
+     read. Nothing here is on the money path: if ScannerBot never answers,
+     the team is still provisional and Check now offers the other choices. */
+  var SB_API = "https://script.google.com/macros/s/AKfycbw87DLlnChiLiD7RxkP0ZxWYDzSJ4acvl-t9ugKX16niSvNQkmsHNbYXfjE844R6HMa/exec";
+  var SB_WAIT_MIN = 20;   /* give up asking after this many minutes */
+  function toB64(blob){ return new Promise(function(res,rej){ var r=new FileReader(); r.onload=function(){ var s=String(r.result); res(s.slice(s.indexOf(",")+1)); }; r.onerror=function(){ rej(new Error("could not read the photo")); }; r.readAsDataURL(blob); }); }
+  function sbSend(d){
+    d.sbBusy=true; d.error=null; render();
+    Promise.all([getPhoto(d.id+"-f"), getPhoto(d.id+"-b")]).then(function(blobs){
+      if(!blobs[0] || !blobs[1]) throw new Error("the photos are not on this phone any more");
+      return Promise.all(blobs.map(toB64)).then(function(b64s){
+        return tvFetch(SB_API, { method:"POST", headers:{"Content-Type":"text/plain;charset=utf-8"},
+          body:JSON.stringify({ key:TV.key, action:"upload", course:"mengacci", rigor:1,
+            photos:b64s.map(function(b,i){ return {b64:b, mime:(blobs[i].type==="image/png"?"image/png":"image/jpeg")}; }) }) });
+      });
+    }).then(function(res){
+      if(!res || !res.ok || !res.bases || res.bases.length!==2) throw new Error((res && res.error) || "ScannerBot refused");
+      d.sbBusy=false;
+      d.sb={bases:res.bases.slice(), sent:Date.now(), done:false, cards:null, failed:null};
+      /* one processing pass now rather than at the next minute; the answer is not waited for */
+      try{ tvFetch(SB_API, { method:"POST", headers:{"Content-Type":"text/plain;charset=utf-8"}, body:JSON.stringify({ key:TV.key, action:"process" }) }).catch(function(){}); }catch(e){}
+      saveCard("provisional","Waiting for ScannerBot", d.s1, d.hcp1);
+    }).catch(function(e){
+      d.sbBusy=false; d.error="ScannerBot could not take the photos ("+(e && e.message ? e.message : tvWhy(e))+"). Check it another way, or try again."; render();
+    });
+  }
+  /* every 20 s: ask after the cards ScannerBot is still reading */
+  var sbPolling=false;
+  function sbPoll(){
+    if(sbPolling || !SB_API) return;
+    var waiting=S.cards.filter(function(c){ return c.sb && !c.sb.done && !c.sb.failed; });
+    if(!waiting.length) return;
+    sbPolling=true;
+    var chain=Promise.resolve();
+    waiting.forEach(function(c){
+      chain=chain.then(function(){
+        if(Date.now()-c.sb.sent > SB_WAIT_MIN*60000){ c.sb.failed="no answer in "+SB_WAIT_MIN+" minutes"; return; }
+        return Promise.all(c.sb.bases.map(function(b){ return tvFetch(SB_API+"?card="+encodeURIComponent(b)+"&t="+Date.now(), {method:"GET"}); }))
+          .then(function(rs){
+            if(!rs.every(function(r){ return r && r.ok && r.done; })) return;   /* still reading */
+            var bad=rs.filter(function(r){ return !r.card || !(r.card.players||[]).length; });
+            if(bad.length){ c.sb.failed="could not read the "+(rs[0]===bad[0]?"front":"back")+" nine"+(bad.length>1?"s":""); return; }
+            c.sb.cards={f:rs[0].card, b:rs[1].card}; c.sb.done=true;
+          }).catch(function(){});   /* no signal: ask again next time */
+      });
+    });
+    chain.then(function(){ sbPolling=false; save(); if(!S.draft && S.view==="home") render(); }, function(){ sbPolling=false; });
+  }
+  if(typeof window!=="undefined" && window.location) setInterval(sbPoll, 20000);
+
+  /* which of the reader's rows is this player? By last name, then first name;
+     when that is not one clear row, Kyle is asked */
+  function sbNorm(s){ return String(s||"").toLowerCase().replace(/[^a-z]/g,""); }
+  function sbMatchRow(p, rows){
+    var last=sbNorm(p.last), firstN=sbNorm(p.first);
+    var byLast=rows.filter(function(r){ return last && sbNorm(r.name).indexOf(last)>=0; });
+    if(byLast.length===1) return rows.indexOf(byLast[0]);
+    var pool=byLast.length?byLast:rows;
+    var byFirst=pool.filter(function(r){ return firstN && sbNorm(r.name).indexOf(firstN)>=0; });
+    if(byFirst.length===1) return rows.indexOf(byFirst[0]);
+    return -1;
+  }
+  function sbHoles(row){ var out=[]; for(var i=0;i<9;i++){ var v=row && row.holes ? row.holes[i] : null; out.push(typeof v==="number"?v:null); } return out; }
+  /* open the read beside what was typed: the same Differences screen as a second read */
+  function sbCompare(c){
+    var d={id:c.id,step:"diff",players:c.players.slice(),hcp1:{},hcp2:{},s1:{},s2:{},tot:{},notes:(c.notes||[]).slice(),pass:2,pi:0,nine:0,armed:null,buf:"",order:c.players.slice(),res:{},photo:!!c.photo,photos:c.photos||null,recheck:true,sbCheck:true,sbRows:{}};
+    c.players.forEach(function(pid){ d.hcp1[pid]=c.hcp[pid]; d.s1[pid]=c.scores[pid].map(function(v){ return v==null?NONE:v; }); });
+    var front=(c.sb.cards.f.players||[]);
+    c.players.forEach(function(pid){ var p=person(pid); var i=p?sbMatchRow(p, front):-1; if(i>=0) d.sbRows[pid]=i; });
+    S.draft=d; sbFill(); render();
+  }
+  /* the reader's 18 holes and handicap for each player, from the rows chosen */
+  function sbFill(){
+    var d=S.draft, c=null; S.cards.forEach(function(x){ if(x.id===d.id) c=x; }); if(!c||!c.sb||!c.sb.cards) return;
+    var front=c.sb.cards.f.players||[], back=c.sb.cards.b.players||[];
+    d.players.forEach(function(pid){
+      var i=d.sbRows[pid]; if(i==null || i<0){ delete d.s2[pid]; return; }
+      var fr=front[i], br=back[i]||null;   /* the back half pairs by row order, as on the card */
+      d.s2[pid]=sbHoles(fr).concat(sbHoles(br));
+      /* the reader's handicap is compared only when it saw one */
+      d.hcp2[pid]=(fr && typeof fr.handicap==="number") ? fr.handicap : d.hcp1[pid];
+    });
+    d.step = d.players.every(function(pid){ return d.s2[pid]; }) ? "diff" : "sbpick";
+  }
+  function renderSbPick(){
+    var d=S.draft, c=null; S.cards.forEach(function(x){ if(x.id===d.id) c=x; });
+    var rows=(c&&c.sb&&c.sb.cards&&c.sb.cards.f.players)||[], kids=[];
+    var pid=null; d.players.forEach(function(p){ if(pid==null && d.s2[p]==null) pid=p; });
+    kids.push(h("div",{class:"big",text:"Which row is "+personName(pid)+"?"}));
+    kids.push(h("div",{class:"note",text:"ScannerBot read these rows on the front nine. Tap the right one, or Skip if the name is not on the card."}));
+    var list=h("div",{class:"list"});
+    rows.forEach(function(r,i){
+      var taken=d.players.some(function(p){ return p!==pid && d.sbRows[p]===i; });
+      list.appendChild(h("button",{class:"pick"+(taken?" done":""),disabled:taken,onclick:function(){ d.sbRows[pid]=i; sbFill(); render(); }},[
+        h("span",{class:"name",text:(r.name&&r.name!=="?"?r.name:"(no name read)")+(typeof r.handicap==="number"?" · hcp "+r.handicap:"")}),
+        h("span",{class:"pill team",text:"out "+(typeof r.computed_sum==="number"?r.computed_sum:"?")}) ]));
+    });
+    kids.push(list);
+    kids.push(h("button",{class:"btn quiet sm",text:"Not on the card · check another way",onclick:function(){ S.draft=null; photoURL={}; S.view="home"; render(); }}));
+    kids.push(footer());
+    paint(top("ScannerBot","Which row?"), kids, null, "pass2");
   }
 
   /* ---------- the skins money: Kyle's screen only, never the board ----------
@@ -791,7 +910,7 @@
     return {
       format:"mengacci-round-v1", written:new Date().toISOString(), event:S.setup, two:S.two, cutoff:S.cutoff, locked:S.locked,
       people:S.people, teams:S.teams, withdrawn:S.withdrawn,
-      cards:S.cards.map(function(c){ return {id:c.id,status:c.status,method:c.method,time:c.time,players:c.players,hcp:c.hcp,scores:c.scores,notes:c.notes,photo:!!c.photo}; }),
+      cards:S.cards.map(function(c){ return {id:c.id,status:c.status,method:c.method,time:c.time,players:c.players,hcp:c.hcp,scores:c.scores,notes:c.notes,photo:!!c.photo,photos:c.photos||null,sb:c.sb||null}; }),
       /* half-done work too, so a backup is the whole phone and not just the saved teams */
       parked:S.parked, draft:S.draft
     };
@@ -815,47 +934,58 @@
     });
   }
 
-  /* ---------- PHOTO ---------- */
-  var photoURL=null;
+  /* ---------- PHOTO ----------
+     Two photos, one per half of the card: ScannerBot reads a card one nine at a
+     time (the CCW card has the front nine on the left and the back nine on the
+     right, holes 1-9 then 10-18). Both are optional for typing; ScannerBot
+     needs both. */
+  var photoURL={};
+  function hasPhotos(d){ return !!(d && d.photos && d.photos.f && d.photos.b); }
   function renderPhoto(){
     var d=S.draft, kids=[];
+    d.photos=d.photos||{f:false,b:false};
     kids.push(h("div",{class:"big",text:"Photograph the card"}));
-    if(photoURL) kids.push(h("img",{class:"photo",src:photoURL,alt:"Scorecard photo"}));
-    var inp=h("input",{type:"file",accept:"image/*",capture:"environment"});
-    inp.onchange=function(){ if(inp.files && inp.files[0]){ var f=inp.files[0]; try{ photoURL=URL.createObjectURL(f); }catch(e){} d.photo=true; putPhoto(d.id, f).then(render); } };
-    kids.push(inp);
-    kids.push(h("button",{class:"btn",text:photoURL||d.photo?"Retake":"Take photo",onclick:function(){inp.click();}}));
-    kids.push(h("button",{class:"btn quiet",text:photoURL||d.photo?"Continue":"Skip the photo",onclick:function(){S.draft.step="pick";render();}}));
+    kids.push(h("div",{class:"note",text:"One photo of each half: holes 1 to 9, then 10 to 18. ScannerBot needs both."}));
+    [["f","Front nine · holes 1-9"],["b","Back nine · holes 10-18"]].forEach(function(half){
+      var k=half[0];
+      if(photoURL[k]) kids.push(h("img",{class:"photo",src:photoURL[k],alt:half[1]}));
+      var inp=h("input",{type:"file",accept:"image/*",capture:"environment"});
+      inp.onchange=function(){ if(inp.files && inp.files[0]){ var f=inp.files[0]; try{ photoURL[k]=URL.createObjectURL(f); }catch(e){} d.photos[k]=true; d.photo=true; putPhoto(d.id+"-"+k, f).then(render); } };
+      kids.push(inp);
+      kids.push(h("button",{class:"btn "+(d.photos[k]?"quiet":""),text:(d.photos[k]?"Retake · ":"Take photo · ")+half[1],onclick:function(){inp.click();}}));
+    });
+    kids.push(h("button",{class:"btn "+(hasPhotos(d)?"":"quiet"),text:hasPhotos(d)?"Continue":(d.photo?"Continue with one photo":"Skip the photos"),onclick:function(){S.draft.step="pick";render();}}));
     kids.push(footer());
-    paint(top("New card","Photo"), kids, null);
+    paint(top("New card","Photos"), kids, null);
   }
   function footer(){
     var d=S.draft;
     if(d.confirmCancel && d.recheck) return h("div",{class:"check bad"},[
       h("div",{class:"t",text:"Stop checking? The saved scores stay as they were, still provisional."}),
       h("div",{class:"row"},[
-        h("button",{class:"btn danger sm",text:"Stop checking",onclick:function(){ S.draft=null; photoURL=null; S.view="home"; render(); }}),
+        h("button",{class:"btn danger sm",text:"Stop checking",onclick:function(){ S.draft=null; photoURL={}; S.view="home"; render(); }}),
         h("button",{class:"btn quiet sm",text:"Keep going",onclick:function(){ d.confirmCancel=false; render(); }})
       ])
     ]);
     if(d.confirmCancel) return h("div",{class:"check bad"},[
       h("div",{class:"t",text:"Throw away this card? Everything typed for it is lost."}),
       h("div",{class:"row"},[
-        h("button",{class:"btn danger sm",text:"Throw away",onclick:function(){ S.draft=null; photoURL=null; S.view="home"; render(); }}),
+        h("button",{class:"btn danger sm",text:"Throw away",onclick:function(){ S.draft=null; photoURL={}; S.view="home"; render(); }}),
         h("button",{class:"btn quiet sm",text:"Keep going",onclick:function(){ d.confirmCancel=false; render(); }})
       ])
     ]);
     /* Changing your mind about typing it again: back to the choices, keeping the
        first entry and dropping only the second read. Kyle, 2026-09-13: "I decided
        I didn't want that option afterall and can't go back". */
-    var back = d.pass===2 ? h("button",{class:"btn link",text:"Back to the check choices",onclick:function(){
+    var back = d.sbCheck ? h("button",{class:"btn link",text:"Not now · leave it provisional",onclick:function(){ S.draft=null; photoURL={}; S.view="home"; render(); }})
+      : d.pass===2 ? h("button",{class:"btn link",text:"Back to the check choices",onclick:function(){
       d.pass=1; d.s2={}; d.hcp2={}; d.res={}; d.order=d.players.slice(); d.pi=0; d.nine=0; d.armed=null; d.ask=null; d.buf=""; d.step="verify"; render(); }}) : null;
     return h("div",{},[ back, h("div",{class:"row links"},[
       h("button",{class:"btn link",text:"Park this card",onclick:parkCard}),
       h("button",{class:"btn link",text:d.recheck?"Stop checking":"Cancel this card",onclick:function(){ d.confirmCancel=true; render(); }})
     ]) ]);
   }
-  function parkCard(){ var d=S.draft; d.confirmCancel=false; d.parkedAt=now(); S.parked.push(d); S.draft=null; photoURL=null; S.view="home"; render(); }
+  function parkCard(){ var d=S.draft; d.confirmCancel=false; d.parkedAt=now(); S.parked.push(d); S.draft=null; photoURL={}; S.view="home"; render(); }
 
   /* ---------- PICK ---------- */
   function renderPick(){
@@ -875,7 +1005,7 @@
     });
     kids.push(list);
     if(!shown) kids.push(h("div",{class:"check warn"},[ h("div",{class:"t",text:"No teams to enter. Make them on the Roster tab."}) ]));
-    kids.push(h("button",{class:"btn link",text:"Back to the photo",onclick:function(){d.step="photo";render();}}));
+    kids.push(h("button",{class:"btn link",text:"Back to the photos",onclick:function(){d.step="photo";render();}}));
     kids.push(footer());
     paint(top("New card","Which team?"), kids, null);
   }
@@ -1039,11 +1169,14 @@
     /* In card order. Kyle, 2026-09-13: "don't make it in random order since there are only two people". */
     kids.push(h("button",{class:"btn gold",text:"I type it again",onclick:function(){
       d.order=d.players.slice(); d.pi=0; d.pass=2; d.nine=0; d.armed=null; d.buf=""; d.step="hcp"; render(); }}));
-    /* ScannerBot reads the photo of the whole card and finds these two typed names among the four.
-       Nothing is wired to him yet, so this parks the team as provisional, waiting. The money never waits on him. */
-    kids.push(h("button",{class:"btn",text:"ScannerBot checks the photo",disabled:!d.photo,
-      onclick:function(){ saveCard("provisional","Waiting for ScannerBot", d.s1, d.hcp1); }}));
-    if(!d.photo) kids.push(h("div",{class:"note",text:"ScannerBot needs a photo of the card. Go back and take one."}));
+    /* ScannerBot reads both halves of the card and the app finds this team's two
+       names among the rows. The team is filed provisional while he reads; the
+       money never waits on him (CLAUDE.md rule 3). Wired 2026-09-13. */
+    var sbWhy = !hasPhotos(d) ? "ScannerBot needs both photos of the card. Go back and take them."
+              : !SB_API ? "ScannerBot has no address." : !TV.key ? "ScannerBot needs the key, on Setup under TV board." : null;
+    kids.push(h("button",{class:"btn",text:d.sbBusy?"Sending the photos…":"ScannerBot checks the photos",disabled:!!sbWhy||!!d.sbBusy,
+      onclick:function(){ sbSend(d); }}));
+    if(sbWhy) kids.push(h("div",{class:"note",text:sbWhy}));
     if(!d.recheck) kids.push(h("button",{class:"btn quiet",text:"Save provisional · check later",onclick:function(){ saveCard("provisional","Provisional", d.s1, d.hcp1); }}));
     if(!d.skipAsk) kids.push(h("button",{class:"btn link",text:"Skip the check · counts as verified",onclick:function(){ d.skipAsk=true; render(); }}));
     else kids.push(h("div",{class:"check bad"},[
@@ -1066,22 +1199,23 @@
     });
     return out;
   }
-  function show(v){ return v===NONE?"none":String(v); }
+  function show(v){ return v===NONE?"none":(v==null?"?":String(v)); }
+  function checkName(){ return S.draft && S.draft.sbCheck ? "ScannerBot" : "Second read"; }
   function renderDiff(){
-    var d=S.draft, list=diffs(), kids=[];
+    var d=S.draft, list=diffs(), kids=[], sb=!!d.sbCheck;
     if(!list.length){
-      kids.push(h("div",{class:"check good"},[ h("div",{class:"t",text:"Both passes agree, every hole, every handicap."}) ]));
+      kids.push(h("div",{class:"check good"},[ h("div",{class:"t",text:sb?"ScannerBot read the same, every hole, every handicap.":"Both passes agree, every hole, every handicap."}) ]));
       kids.push(h("button",{class:"btn",text:"Continue",onclick:function(){ d.step="confirm"; render(); }}));
     }else{
       kids.push(h("div",{class:"big",text:list.length+" difference"+(list.length>1?"s":"")}));
-      kids.push(h("div",{class:"note",text:"Look at the paper. First pass on the left, second on the right."}));
+      kids.push(h("div",{class:"note",text:sb?"Look at the paper. What you typed on the left, what ScannerBot read on the right. A ? is a cell he could not read.":"Look at the paper. First pass on the left, second on the right."}));
       var box=h("div");
       list.forEach(function(x){
         var pick=d.res[x.key];
         box.appendChild(h("div",{class:"drow"},[
           h("div",{class:"l"},[first(x.pid)+" ", h("small",{text:x.label})]),
           h("button",{class:"choice"+(pick==="a"?" on":""),text:show(x.a),onclick:function(){d.res[x.key]="a";render();}}),
-          h("button",{class:"choice"+(pick==="b"?" on":""),text:show(x.b),onclick:function(){d.res[x.key]="b";render();}})
+          h("button",{class:"choice"+(pick==="b"?" on":""),text:show(x.b),disabled:x.b==null,onclick:function(){d.res[x.key]="b";render();}})
         ]));
       });
       kids.push(box);
@@ -1089,7 +1223,7 @@
       kids.push(h("button",{class:"btn",text:done?"Continue":"Settle every line first",disabled:!done,onclick:function(){ d.step="confirm"; render(); }}));
     }
     kids.push(footer());
-    paint(top("Second read","Differences"), kids, null, "pass2");
+    paint(top(checkName(),"Differences"), kids, null, "pass2");
   }
   function resolved(){
     var d=S.draft, hcp={}, sc={};
@@ -1109,14 +1243,15 @@
         h("td",{class:"n",text:String(sum(a,0,9))}), h("td",{class:"n",text:String(sum(a,9,18))}),
         h("td",{class:"n",text:String(g)+(part?"*":"")}), h("td",{class:"n",text:String(net)+(part?"*":"")}) ])); });
     kids.push(t);
-    kids.push(h("div",{class:"check good"},[ h("div",{class:"t",text:"Second read · "+(n?n+" difference"+(n>1?"s":"")+" settled against the paper":"no differences")}),
+    var method=checkName()+(n?" · "+n+" settled":"");
+    kids.push(h("div",{class:"check good"},[ h("div",{class:"t",text:checkName()+" · "+(n?n+" difference"+(n>1?"s":"")+" settled against the paper":"no differences")}),
       d.notes.length?h("div",{text:d.notes.join(". ")}):null ]));
     var gap=nobodyHoles(r.sc, d.players);
     if(gap.length) kids.push(nobodyWarning(gap));
     if(d.error) kids.push(h("div",{class:"check bad"},[ h("div",{class:"t",text:d.error}) ]));
-    kids.push(h("button",{class:"btn",text:"Confirm card · verified",disabled:gap.length>0,onclick:function(){ saveCard("confirmed","Second read", r.sc, r.hcp); }}));
+    kids.push(h("button",{class:"btn",text:"Confirm card · verified",disabled:gap.length>0,onclick:function(){ saveCard("confirmed",method, r.sc, r.hcp); }}));
     kids.push(h("button",{class:"btn link",text:"Back to differences",onclick:function(){ d.step="diff"; render(); }}));
-    paint(top("Second read","Confirm"), kids, null, "pass2");
+    paint(top(checkName(),"Confirm"), kids, null, "pass2");
   }
   function saveCard(status, method, sc, hcp){
     var d=S.draft;
@@ -1124,10 +1259,12 @@
     var clash=S.cards.concat(S.parked).filter(function(c){ return c.id!==d.id && c.players.some(function(pid){ return d.players.indexOf(pid)>=0; }); });
     if(clash.length){ d.error=clash[0].players.map(personName).join(" & ")+" already have a card. One player, one card."; render(); return; }
     if(nobodyHoles(sc, d.players).length){ render(); return; }
-    var card={id:d.id, status:status, method:method, time:now(), players:d.players.slice(), notes:d.notes.slice(), hcp:{}, scores:{}, photo:!!d.photo};
+    var card={id:d.id, status:status, method:method, time:now(), players:d.players.slice(), notes:d.notes.slice(), hcp:{}, scores:{}, photo:!!d.photo, photos:d.photos||null, sb:d.sb||null};
+    /* a card ScannerBot has read keeps his read on file, whichever way it is settled */
+    if(!card.sb) S.cards.forEach(function(c){ if(c.id===d.id && c.sb) card.sb=c.sb; });
     d.players.forEach(function(pid){ card.hcp[pid]=hcp[pid]; card.scores[pid]=toNull(sc[pid]); });
     S.cards=S.cards.filter(function(c){ return c.id!==d.id; });   /* a checked card replaces its own provisional copy */
-    S.cards.push(card); S.draft=null; photoURL=null; S.view=(status==="confirmed"?"board":"home"); render();
+    S.cards.push(card); S.draft=null; photoURL={}; S.view=(status==="confirmed"?"board":"home"); render();
   }
 
   /* ---------- BOARD ---------- */
@@ -1319,7 +1456,7 @@
      the offline copy's version, so Kyle's phone said v10 while the v9 screen was
      still running and still said "random order" (2026-09-13). test/walk.js
      fails if this and CACHE in sw.js ever differ. */
-  var APP_VERSION = "mengacci-v13";
+  var APP_VERSION = "mengacci-v14";
   var versionText="not installed", swVersion=null;
   function showVersion(){
     var el=document.getElementById("stamp"); if(!el) return;
