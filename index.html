@@ -441,7 +441,9 @@
 
     kids.push(h("div",{class:"sect",text:"Event"}));
     kids.push(field("Name", S.setup.name, function(v){S.setup.name=v;}, false));
-    kids.push(field("Date", S.setup.date, function(v){S.setup.date=v;}, false));
+    /* No date box: the date is the day the scores are sent. Kyle, 2026-09-12 on the
+       board ("The date should be automatic. Not by me.") and again 2026-09-13 on
+       Setup ("Why is there a date field. That should be automatic."). */
 
     /* The TV. Off until an address and a key are in. Nothing on the money path
        depends on it (CLAUDE.md rule 3) — it is a broadcast of what is already
@@ -1130,7 +1132,7 @@
   function tvPayload(){
     return { format:"mengacci-live-v1", posted:new Date().toISOString(), source:TV_SOURCE,
       rows:TV.rows, secs:TV.secs,
-      event:{ name:S.setup.name, date:S.setup.date }, cutoff:cutoffNow(),
+      event:{ name:S.setup.name, date:stampDate() }, cutoff:cutoffNow(),
       people:S.people.map(function(p){ return {id:p.id, first:p.first, last:p.last}; }),
       teams:S.teams.map(function(t){ return {id:t.id, players:t.players.slice()}; }),
       withdrawn:S.withdrawn.slice(),
