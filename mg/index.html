@@ -10,8 +10,9 @@
 <style>
   /* Two screens in one file: the BOARD (the club TV, and any phone that opens
      this address) and ENTRY (?enter=1, Kyle's phone). The arithmetic is in
-     points.js, which both load. Read from across a room: one type scale, no
-     instructions on the board, nothing that scrolls on a TV. */
+     points.js, which both load; the saved record is record.js. Read from
+     across a room: one type scale, no instructions on the board, nothing that
+     scrolls on a TV. */
   :root{
     --bg:#E9EFE8; --panel:#FBFCFA; --ink:#16241C; --muted:#5C6B61; --line:#CBD6CD;
     --green:#1E5A3C; --green-ink:#F4F8F4; --green-soft:#DCEADF;
@@ -41,12 +42,11 @@
     display:flex;align-items:baseline;gap:16px;white-space:nowrap;overflow:hidden}
   .sun .lab{text-transform:uppercase;letter-spacing:.12em;font-size:20px;opacity:.9}
   .sun .num{color:#7A560F;font-size:32px;font-weight:700}
-  .sun .who{color:#7A560F;overflow:hidden;text-overflow:ellipsis}
+  .sun .who{color:#7A560F;overflow:hidden;text-overflow:ellipsis;min-width:0}
   .sun .why{color:#8A6A2A;font-weight:600;font-size:20px;opacity:.85;white-space:nowrap}
   /* the prize money sits at the right end of the banner, once marked final */
-  .sun .who{min-width:0}
   .sun .amt{margin-left:auto;flex:none;padding-left:24px;font-size:34px;color:#7A560F}
-  /* the banner's other turn: the total points pot, in the pot's green */
+  /* the main pot's turns of the banner, in the pot's green */
   .sun.pot{background:var(--green-soft);color:var(--green)}
   .sun.pot .num,.sun.pot .who,.sun.pot .amt{color:var(--green)}
 
@@ -58,48 +58,44 @@
   .prog{flex:none;height:8px;background:var(--green-soft);overflow:hidden}
   .prog .fill{height:100%;width:0;background:var(--green)}
 
-  /* WIDTHS ARE SHARES, NOT PIXELS, and they add to 100.
-     Kyle's phone, 2026-09-12: "all the names are gone". The numeric columns
-     were sized in fixed pixels — about 870px of them — which is wider than a
-     phone, so the team column was left with nothing and the names were
-     clipped to zero. Both the old layout and my first attempt at fixing it
-     failed the same way, on a narrow screen and on a television whose
-     viewport is smaller than it looks.
-     A share cannot collapse: the team column always gets a third of whatever
-     the screen is. table-layout:fixed makes the browser obey the shares
-     exactly, and it also makes every page of the rotation line up, which was
-     the other complaint. */
+  /* WIDTHS ARE SHARES, NOT PIXELS, and they add to 100 — Pts.shares() works
+     them out for 5 or 7 matches, with or without a second pot, and the gate
+     does the arithmetic. Kyle's phone, 2026-09-12: "all the names are gone" —
+     the columns were fixed pixels wider than the screen, and the team column
+     was left with nothing. table-layout:fixed makes the browser obey the
+     shares exactly, and makes every page of the rotation line up. */
   table{width:100%;table-layout:fixed;border-collapse:collapse;font-variant-numeric:tabular-nums}
-  col.c-pos{width:6%} col.c-team{width:32%} col.c-r{width:7%} col.c-tot{width:14%} col.c-sun{width:13%}
-  th{font-family:"Barlow Condensed",sans-serif;font-weight:600;letter-spacing:.08em;text-transform:uppercase;font-size:calc(19px * var(--k));color:var(--muted);text-align:right;padding:4px 5px;border-bottom:2px solid var(--line)}
+  th{font-family:"Barlow Condensed",sans-serif;font-weight:600;letter-spacing:.08em;text-transform:uppercase;font-size:calc(24px * var(--k));color:var(--muted);text-align:right;padding:4px 5px;border-bottom:2px solid var(--line);white-space:nowrap;overflow:hidden}
   th.l{text-align:left}
   td{padding:calc(7px * var(--k)) 5px;border-bottom:1px solid var(--line);white-space:nowrap;overflow:hidden}
   td.pos{font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:calc(38px * var(--k));color:var(--muted);text-align:right}
   td.team{font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:calc(52px * var(--k));text-overflow:ellipsis}
   td.r{font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:calc(46px * var(--k));color:var(--ink);text-align:right}
   td.tot{font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:calc(62px * var(--k));text-align:right}
-  /* Sunday money reads as big as the pot — Kyle, 2026-09-12: "make the font
-     for Sunday money as big as that for total points, but keep the color that
-     brownish". It is the second pot, not a footnote. The row height is already
-     set by the total at the same size, so this costs no height. */
+  /* The second pot reads as big as the total — Kyle, 2026-09-12: "make the
+     font for Sunday money as big as that for total points, but keep the color
+     that brownish". The row height is already set by the total. */
   td.sn{font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:calc(62px * var(--k));text-align:right;color:var(--gold)}
-  /* a team winning the pot cannot win Sunday money: its Sunday points are
-     still shown, because they are a fact, but never in the money colour */
+  /* a team paid in the main pot cannot win the second: its points are still
+     shown, because they are a fact, but never in the money colour */
   td.sn.out{color:var(--muted);opacity:.5}
-  th{font-size:calc(24px * var(--k))}
   tr.lead td{background:var(--green-soft)}
   tr.lead td.pos,tr.lead td.tot{color:var(--green)}
   tr.sunlead td.sn{background:var(--gold-soft);font-weight:700}
-  /* the Sunday money team's name in brown too, so a six-way tie can be found
-     in the list and not only in the strip. Kyle, 2026-09-13, from a mockup:
-     "fix yes, brown yes". */
+  /* the second pot's leaders' names in brown too, so a six-way tie can be
+     found in the list. Kyle, 2026-09-13: "fix yes, brown yes". */
   tr.sunlead td.team{color:#7A560F;background:var(--gold-soft)}
   td.dash{color:var(--line);font-weight:500}
 
   /* ---------- entry ---------- */
   .pad{flex:1;min-height:0;overflow:auto;padding:14px 16px 120px;background:var(--bg)}
-  .rounds{display:flex;gap:8px;padding:12px 16px 0;flex:none;background:var(--bg)}
-  .rounds button{flex:1;font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:24px;padding:14px 0;
+  .tabs{display:flex;gap:8px;padding:12px 16px 0;flex:none;background:var(--bg)}
+  .tabs button{flex:1;font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:24px;padding:12px 0;
+    border:2px solid var(--line);background:var(--panel);color:var(--muted);border-radius:12px}
+  .tabs button.on{background:var(--ink);border-color:var(--ink);color:var(--green-ink)}
+  .rounds{display:flex;gap:6px;padding:10px 16px 0;flex:none;background:var(--bg);align-items:stretch}
+  .rounds .lab{align-self:center;flex:none;font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:20px;color:var(--muted);padding-right:4px}
+  .rounds button{flex:1;min-width:0;font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:26px;padding:12px 0;
     border:2px solid var(--line);background:var(--panel);color:var(--muted);border-radius:12px}
   .rounds button.on{background:var(--green);border-color:var(--green);color:var(--green-ink)}
   .count{padding:10px 16px 0;font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:22px;color:var(--muted);background:var(--bg);flex:none}
@@ -109,8 +105,21 @@
     padding:10px 4px;border:2px solid var(--line);border-radius:10px;background:#fff;color:var(--ink)}
   .row.done .val{border-color:var(--green);color:var(--green)}
   .row .val.empty{color:var(--line)}
+  .row.done{background:var(--green-soft);border-color:var(--green-soft)}
 
-  /* the panel of the only values a match score can be */
+  /* the Teams tab: two names a team, typed or checked against the sheet */
+  .trow{display:flex;align-items:center;gap:8px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:8px 10px;margin-top:8px}
+  .trow .n{flex:none;width:30px;text-align:right;font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:22px;color:var(--muted)}
+  .trow .names{flex:1;min-width:0;display:flex;flex-direction:column;gap:6px}
+  .trow input{width:100%;min-width:0;font-size:17px;padding:9px 10px;border:2px solid var(--line);border-radius:8px;background:#fff}
+  .trow .x{flex:none;width:46px;height:46px;border:2px solid var(--line);border-radius:10px;background:var(--panel);color:var(--muted);font-size:24px;line-height:1}
+  .warnbox{background:var(--gold-soft);color:#7A560F;border-radius:10px;padding:10px 12px;margin-top:10px;font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:20px}
+  .bigbtn{display:block;width:100%;margin-top:10px;font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:22px;padding:14px 0;
+    border:2px solid var(--green);border-radius:12px;background:var(--panel);color:var(--green)}
+  .bigbtn.solid{background:var(--green);color:var(--green-ink)}
+  .bigbtn.quiet{border-color:var(--line);color:var(--muted)}
+
+  /* the panel of the only values a match score can be, and the confirm sheets */
   .sheet{position:fixed;inset:0;background:rgba(22,36,28,.55);display:flex;align-items:flex-end;z-index:60}
   .sheetin{background:var(--panel);width:100%;border-radius:20px 20px 0 0;padding:16px 14px 20px;max-height:88vh;overflow:auto}
   .sheetnm{font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:30px}
@@ -122,16 +131,31 @@
   .sheetfoot{display:flex;gap:9px;margin-top:12px}
   .sheetfoot button{flex:1;font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:22px;padding:15px 0;
     border:2px solid var(--line);border-radius:12px;background:var(--panel);color:var(--muted)}
+  .sheetfoot button.save{background:var(--green);border-color:var(--green);color:var(--green-ink)}
+  /* one tap: 0 to 9 in half steps, a Minus toggle, and Other for the pad */
+  .minus{display:block;width:100%;margin:0 0 9px;font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:24px;padding:10px 0;
+    border:2px solid var(--line);border-radius:12px;background:var(--panel);color:var(--muted)}
+  .minus.on{background:var(--ink);border-color:var(--ink);color:var(--green-ink)}
+  .tap{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+  .tap button{font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:30px;padding:11px 0;
+    border:2px solid var(--line);border-radius:12px;background:#fff;color:var(--ink)}
+  .tap button.on{background:var(--green);border-color:var(--green);color:var(--green-ink)}
+  .tap button.other{font-size:22px;color:var(--green);border-color:var(--green);background:var(--green-soft)}
+  /* the pad behind Other */
+  .padshow{font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:46px;line-height:1.05;text-align:center;padding:2px 0 6px;color:var(--ink)}
+  .keys{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+  .keys button{font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:32px;padding:9px 0;
+    border:2px solid var(--line);border-radius:12px;background:#fff;color:var(--ink)}
   .steps{display:flex;gap:8px;margin:2px 0 10px}
   .steps button{flex:1;font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:20px;padding:11px 0;
     border:2px solid var(--line);border-radius:10px;background:var(--panel);color:var(--muted)}
   .steps button.on{background:var(--green);border-color:var(--green);color:var(--green-ink)}
-  .row.done{background:var(--green-soft);border-color:var(--green-soft)}
   .bar{position:fixed;left:0;right:0;bottom:0;background:var(--panel);border-top:2px solid var(--line);padding:12px 16px;display:flex;gap:10px}
   .bar button{flex:1;font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:24px;padding:16px 0;border:0;border-radius:12px;background:var(--green);color:var(--green-ink)}
   .bar button.ghost{background:var(--panel);color:var(--green);border:2px solid var(--green);flex:0 0 40%}
   .note{padding:14px 16px 0;font-size:15px;color:var(--muted)}
   .setup{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px;margin-top:14px}
+  .setup .sect{font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:26px;color:var(--ink);margin:4px 0 8px}
   .setup label{display:block;font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:19px;color:var(--muted);margin-bottom:4px}
   .setup input{width:100%;font-size:16px;padding:10px;border:2px solid var(--line);border-radius:8px}
 
@@ -148,12 +172,14 @@
     .top h1{font-size:27px}
     .event{font-size:16px}
     .eyebrow{font-size:13px}
-    .top .right{font-size:15px}
+    /* A long message ("3 teams from the link — check them against the
+       sheet") must wrap, not push the whole screen wider than the phone:
+       nowrap here made every box and button on the page run off the right. */
+    .top .right{font-size:15px;white-space:normal;min-width:0;max-width:42%}
     .sun{padding:7px 14px;font-size:19px;flex-wrap:wrap;white-space:normal}
     .sun .lab{font-size:15px}
     .cols{grid-template-columns:1fr;padding:8px 12px 24px;overflow:visible}
-    .col+.col{border-left:0;padding-left:0;border-top:5px solid var(--green-soft);padding-top:10px}
-    col.c-pos{width:8%} col.c-team{width:38%} col.c-r{width:6%} col.c-tot{width:13%} col.c-sun{width:11%}
+    th{font-size:13px}
     td.pos{font-size:18px}
     td.team{font-size:21px}
     td.r{font-size:16px}
@@ -164,7 +190,8 @@
 </head>
 <body>
 <div class="screen" id="screen"></div>
-<script src="points.js?v=21db17c6ae"></script>
+<script src="points.js?v=47d97c1d9e"></script>
+<script src="record.js?v=35df223091"></script>
 <script>
 (function(){
   "use strict";
@@ -173,30 +200,42 @@
   /* A cached points.js is the one way this page can white-screen: index.html
      updates, the browser keeps yesterday's rules file, and the first call to
      something new throws before anything is drawn. Kyle, 2026-09-12: "my
-     desktop icon is now broke / shows white screen". deploy.js now stamps the
-     script tag with a hash so that cannot happen again, and these fallbacks
-     mean that even if it does, the board draws. */
-  if(!Pts.rows) Pts.rows = function(v){ v = parseInt(v,10); return (v>=4&&v<=25)?v:9; };
+     desktop icon is now broke / shows white screen". deploy.js stamps the
+     script tags with a hash so that cannot happen, and these fallbacks mean
+     that even if it does, the board draws — a 5-match, 1-place event. */
+  if(!Pts.rows) Pts.rows = function(v){ v = parseInt(v,10); return (v>=4&&v<=100)?v:9; };
   if(!Pts.secs) Pts.secs = function(v){ v = parseInt(v,10); return (v>=3&&v<=120)?v:10; };
   if(!Pts.ROWS_DEFAULT) Pts.ROWS_DEFAULT = 9;
   if(!Pts.SECS_DEFAULT) Pts.SECS_DEFAULT = 10;
-  if(!Pts.ROWS_CHOICES) Pts.ROWS_CHOICES = [6,9,13,25];
+  if(!Pts.ROWS_CHOICES) Pts.ROWS_CHOICES = [6,9,13,100];
   if(!Pts.SECS_CHOICES) Pts.SECS_CHOICES = [5,10,15,20,30];
-  if(!Pts.step) Pts.step = function(){ return 0.5; };
-  if(!Pts.max) Pts.max = function(){ return 8; };
-  if(!Pts.scale) Pts.scale = function(st,mx){ st=Pts.step(st); mx=Pts.max(mx);
-    var a=[],n=Math.floor(mx/st+1e-9); for(var i=0;i<=n;i++) a.push(Math.round(i*st*100)/100); return a; };
-  if(!Pts.onScale) Pts.onScale = function(v,st,mx){ if(v===null||v===undefined||v==="") return false;
-    st=Pts.step(st); v=Number(v); if(!isFinite(v)||v<0||v>Pts.max(mx)) return false;
-    var u=v/st; return Math.abs(u-Math.round(u))<1e-9; };
+  if(!Pts.score) Pts.score = function(v){ if(v===null||v===undefined) return null;
+    var s=String(v).trim().replace(/−/g,"-"); if(!/^-?(\d+\.?\d*|\.\d+)$/.test(s)) return null; return Number(s); };
+  if(!Pts.purse) Pts.purse = function(n){ return { teams:n, entries:n*100, typed:0, diff:-n*100 }; };
+  /* a stale rules file never shows money: the check it would need is missing */
+  if(!Pts.moneyReady) Pts.moneyReady = function(){ return false; };
+  if(!Pts.moneyProblems) Pts.moneyProblems = function(){ return ["The phone needs the new version: close and reopen the app"]; };
   if(!Pts.money) Pts.money = function(v){ v=Math.floor(Number(v)); return (isFinite(v)&&v>0&&v<=1000000)?v:0; };
   if(!Pts.share) Pts.share = function(t,n){ t=Pts.money(t); n=parseInt(n,10); return (t&&n>0)?Math.floor(t/n):0; };
   if(!Pts.dollars) Pts.dollars = function(v){ return "$"+String(v).replace(/\B(?=(\d{3})+(?!\d))/g,","); };
+  if(!Pts.rounds) Pts.rounds = function(){ return 5; };
+  if(!Pts.places) Pts.places = function(){ return 1; };
+  if(!Pts.ROUND_CHOICES) Pts.ROUND_CHOICES = [5];
+  if(!Pts.PLACE_CHOICES) Pts.PLACE_CHOICES = [1];
+  if(!Pts.secondName) Pts.secondName = function(v){ return String(v||"").trim() || "Sunday money"; };
+  if(!Pts.cleanTeams) Pts.cleanTeams = function(l){ return (l||[]).map(function(p){ return [String((p||[])[0]||"").trim(), String((p||[])[1]||"").trim()]; }); };
+  if(!Pts.duplicates) Pts.duplicates = function(){ return []; };
+  if(!Pts.setup) Pts.setup = function(j){ j=j||{}; return { rounds:5, places:1, prizes:[Pts.money(j.pot),0,0],
+    second:{ on:true, name:"Sunday money", amount:Pts.money(j.sun) }, final:j.final===true }; };
+  if(!Pts.shares) Pts.shares = function(){ return { pos:6, team:32, r:7, tot:14, sun:13 }; };
+  if(!Pts.payout) Pts.payout = function(){ return { main:[], second:null, byTeam:{} }; };
+  if(!Pts.placeName) Pts.placeName = function(p){ return ["","1st","2nd","3rd"][p] || (p+"th"); };
 
-  /* The 25 teams, as Kyle sent them 2026-09-12. Fixed for the weekend: there
-     is no roster screen, because there is nothing to change. mg/teams.json is
-     the same list. */
-  var TEAMS = [
+  /* The 25 teams of the 3-Day Member Guest, 2026-09-12 — the list a phone
+     starts with the first time it opens this version. After that the teams are
+     the phone's own, typed on the Teams tab or filled from a link, and the
+     board takes them from what the phone sends. mg/teams.json is this list. */
+  var TEAMS_DEFAULT = [
     ["Ryan Wessendorf","Mike Grieder"],
     ["Gary Valimont","Carl Valimont"],
     ["Pete Heintz","Martin Pelatowski"],
@@ -229,21 +268,26 @@
      Do i get to change that myself?" — yes. */
   var TITLE_DEFAULT = "Vander-Total-Points Pot";
   var TITLESTORE = "vtp_title";
-  /* The pot is run at every club event, so the event name is data, not code.
-     Kyle types it once on the entry screen; it rides along to the TV. */
+  /* The event name is data, not code. Kyle types it on the Setup tab; it
+     rides along to the TV. A new tournament empties it. */
   var EVENT_DEFAULT = "3-Day Member Guest";
   var EVSTORE = "vtp_event";
-  var STEPSTORE = "vtp_step", MAXSTORE = "vtp_max";
   var ROWSTORE = "vtp_rows", SECSTORE = "vtp_secs";
-  var POTSTORE = "vtp_pot", SUNSTORE = "vtp_sun", FINALSTORE = "vtp_final";
+  var FINALSTORE = "vtp_final";
+  /* the shape of the event, and the money (2026-09-13) */
+  var TEAMSTORE = "vtp_teams", ROUNDSTORE = "vtp_rounds", PLACESTORE = "vtp_places",
+      PRIZESTORE = "vtp_prizes", SECONDSTORE = "vtp_second";
+  var POTSTORE = "vtp_pot", SUNSTORE = "vtp_sun";   /* before paid places: read once, to carry over */
   var STORE = "vtp_2026";           /* its own key. The Mengacci app's round is
                                        stored under a different one and this page
                                        never reads or writes it. */
   var KEYSTORE = "vtp_key";         /* the posting key, this device only */
+  var NROWS = 7;                    /* every team's scores hold 7 matches, so
+                                       switching 7 to 5 and back loses nothing */
 
-  /* The live channel, when there is one: the same Apps Script the Mengacci
-     board uses (sync/README.md), with board=vtp so the two never collide.
-     Empty until Kyle deploys it; ?api=<url> sets it without a redeploy. */
+  /* The live channel: the same Apps Script the Mengacci board uses
+     (sync/README.md), with board=vtp so the two never collide. ?api=<url>
+     sets it without a redeploy. */
   var MG_API = "https://script.google.com/macros/s/AKfycbw756Fq3M4FB9zbR7FWhQiKMozAgSD2W6RjkImAC_4jg7x7l9ykjTzh4ZWUDZcNtbS_/exec";
   var EVERY = 20000, STALE = 120000;
 
@@ -255,12 +299,8 @@
      the match scores were too small to read across the room. Type size is
      bounded by row height and row height is the screen divided by the rows on
      it, so the only way to make everything bigger is to show fewer teams at a
-     time. Nine at a time over three pages is about 45% bigger type than 25 at
-     once, and a 30-second cycle is a short wait to see your own team.
-     ?rows=25 puts them all back on one page; ?secs=n changes the dwell. */
+     time. ?rows=n and ?secs=n still override, for a seat testing a size. */
   var ROWS = Pts.ROWS_DEFAULT, SECS = Pts.SECS_DEFAULT;
-  /* An address still wins, for a seat testing a size without touching Kyle's
-     phone, and it locks out whatever arrives from the channel. */
   var rowsLocked = /^\d+$/.test(q.get("rows") || ""), secsLocked = /^\d+$/.test(q.get("secs") || "");
   if (rowsLocked) ROWS = Pts.rows(q.get("rows"));
   if (secsLocked) SECS = Pts.secs(q.get("secs"));
@@ -271,44 +311,67 @@
   var page = 0, lastPosted = "", pageTimer = null;
   /* the banner's turn, counted apart from the page: see renderBoard */
   var turn = 0;
-  /* the prize money and whether to show it: this phone's settings, replaced
-     by whatever the channel carries once the board hears from it */
-  var PURSE = { pot:getPot(), sun:getSun(), final:getFinal() };
 
+  /* The teams, the scores and the set-up. On the phone they are the phone's
+     own; the board replaces all three with what the channel carries. */
+  var TEAMS = getTeams();
+  var SETUP = localSetup();
+  var tab = (q.get("tab") === "teams" || q.get("tab") === "setup") ? q.get("tab") : "scores";
   var round0 = 0;
   var points = load();
+  var lastPost = 0, lastOK = 0, everFetched = false, postState = "";
   preload();
+  preloadTeams();
 
   /* ?set=1&vals=3.5,3,1.5,... fills one whole match in team order and then
-     takes itself out of the address bar, so a refresh cannot re-apply it.
-     25 numbers typed by thumb is five minutes; a link is one tap. Typing them
-     by hand still works and is the fallback whenever there is no link. */
+     takes itself out of the address bar, so a refresh cannot re-apply it. */
   function preload(){
     var set = parseInt(q.get("set"), 10), vals = q.get("vals");
-    if(!(set >= 1 && set <= 5) || !vals) return;
+    if(!(set >= 1 && set <= SETUP.rounds) || !vals) return;
     var list = vals.split(",");
     if(list.length !== TEAMS.length) return;
     for(var i = 0; i < TEAMS.length; i++){
-      var t = list[i].trim();
-      var v = (t === "" || t === "-") ? null : Number(t);
-      points[i][set-1] = Pts.onScale(v, getStep(), getMax()) ? v : null;
+      points[i][set-1] = Pts.score(list[i]);
     }
     save();
     try{ history.replaceState(null, "", location.pathname + (ENTRY ? "?enter=1" : "")); }catch(e){}
     round0 = set - 1;
   }
-  var lastPost = 0, lastOK = 0, everFetched = false, postState = "";
+
+  /* ?teams=Ann Smith/Bob Jones;Cal Lee/Dan Poe fills the Teams tab — how a seat
+     hands Kyle a list it read off a photo of the pairing sheet, for him to
+     check against the paper. Kyle, 2026-09-13: "When people want in I circle
+     their names. Then can you create the team list somehow?" It never lands on
+     a phone that has scores: that would put this weekend's points against
+     next weekend's names. */
+  function preloadTeams(){
+    var raw = q.get("teams");
+    if(!raw || !ENTRY) return;
+    try{ history.replaceState(null, "", location.pathname + "?enter=1"); }catch(e){}
+    if(!empty()){ postState = "Teams link not used: this phone still has scores. Start a new tournament first."; tab = "setup"; return; }
+    var list = Pts.cleanTeams(raw.split(";").map(function(t){ return t.split("/"); }))
+      .filter(function(p){ return p[0] || p[1]; });
+    if(!list.length) return;
+    TEAMS = list; setTeams(TEAMS);
+    points = fitPoints([], TEAMS.length); save();
+    tab = "teams";
+    postState = list.length + " teams from the link — check them against the sheet";
+  }
 
   /* ---------- storage ---------- */
-  function blank(){ return TEAMS.map(function(){ return [null,null,null,null,null]; }); }
+  function fitPoints(p, n){
+    p = Array.isArray(p) ? p : [];
+    var out = [];
+    for(var i = 0; i < n; i++){
+      var r = Array.isArray(p[i]) ? p[i] : [], o = [];
+      for(var k = 0; k < NROWS; k++) o.push((r[k] === undefined || r[k] === "") ? null : r[k]);
+      out.push(o);
+    }
+    return out;
+  }
   function load(){
-    try{
-      var raw = localStorage.getItem(STORE);
-      if(!raw) return blank();
-      var p = JSON.parse(raw);
-      if(!Array.isArray(p) || p.length !== TEAMS.length) return blank();
-      return p.map(function(r){ r = Array.isArray(r)?r:[]; var o=[]; for(var k=0;k<5;k++) o.push(r[k]===undefined?null:r[k]); return o; });
-    }catch(e){ return blank(); }
+    try{ var raw = localStorage.getItem(STORE); return fitPoints(raw ? JSON.parse(raw) : [], TEAMS.length); }
+    catch(e){ return fitPoints([], TEAMS.length); }
   }
   function save(){ try{ localStorage.setItem(STORE, JSON.stringify(points)); }catch(e){} }
 
@@ -326,6 +389,8 @@
   }
   function clock(ms){ var d = new Date(ms), h = d.getHours(), m = d.getMinutes();
     return (h%12||12) + ":" + (m<10?"0":"") + m + (h<12 ? "am" : "pm"); }
+  /* a quarter shows as a quarter: 6.25, not 6.3 */
+  function show(v){ return v === null ? "–" : String(Math.round(v * 100) / 100); }
 
   /* The board shows the names the TV was last sent; the entry screen shows
      what this phone has typed. Neither overwrites the other. */
@@ -340,8 +405,8 @@
   function topBand(rightLines){
     /* Tapping the crest on the board goes to the entry screen, and on the
        entry screen goes back to the board. Kyle, 2026-09-12: "when I hit
-       board I see it but how do i go back" — the Board button was a one-way
-       door. Nothing is labelled, so the club TV shows no control at all. */
+       board I see it but how do i go back". Nothing is labelled, so the club
+       TV shows no control at all. */
     return h("div",{class:"top"},[
       h("div",{class:"tophead"},[
         h("img",{class:"logo",src:"ccw-logo.png",alt:"Country Club of Waterbury",
@@ -360,20 +425,24 @@
   }
 
   /* ---------- the board ---------- */
+  var PLACE_WORDS = ["", "First", "Second", "Third"];
   function renderBoard(){
-    var rows = Pts.standings(TEAMS, points);
-    var n = Pts.roundsIn(points);
+    var R = SETUP.rounds, N = SETUP.places, S2 = SETUP.second;
+    var rows = Pts.standings(TEAMS, points, { rounds:R, places:N, second:S2.on, prizes:SETUP.prizes });
+    var n = Pts.roundsIn(points, R);
     var scr = document.getElementById("screen");
     scr.innerHTML = "";
 
-    var pagesFor = Math.max(1, Math.ceil(TEAMS.length / ROWS));
-    /* A part-entered match must say so. Kyle can send at any point in a round,
-       and "After match 3 of 5" with 12 of 25 in makes the other 13 look like
-       they are losing when they simply are not on the sheet yet. Same rule as
-       the Mengacci board: show what is in, and show what is still out. */
+    /* teams a page: the setting, unless this screen cannot hold that many —
+       then more pages, never a team off the bottom (see fit) */
+    var PER = Math.min(ROWS, rowCap);
+    var pagesFor = Math.max(1, Math.ceil(TEAMS.length / PER));
+    /* A part-entered match must say so. "After match 3 of 5" with 12 of 25 in
+       makes the other 13 look like they are losing when they simply are not on
+       the sheet yet. Show what is in, and show what is still out. */
     var inThis = n ? Pts.entered(points, n-1) : 0;
     var part = n && inThis < TEAMS.length;
-    var right = [{text: n ? (part ? "Match " + n + " coming in" : "After match " + n + " of 5")
+    var right = [{text: n ? (part ? "Match " + n + " coming in" : "After match " + n + " of " + R)
                           : "No scores yet"}];
     if(part) right.push({text: inThis + " of " + TEAMS.length + " in", warn:true});
     if(n && pagesFor > 1) right.push({text: (page + 1) + " of " + pagesFor});
@@ -381,7 +450,7 @@
       if(lastOK) right.push({text:"Updated " + clock(lastOK), warn:(Date.now()-lastOK > STALE)});
       else if(everFetched) right.push({text:"Waiting for scores"});
     } else {
-      right.push({text:"25 teams"});
+      right.push({text: TEAMS.length + " teams"});
     }
     scr.appendChild(topBand(right));
 
@@ -393,57 +462,67 @@
       return;
     }
 
-    /* ONE BANNER, TAKING TURNS: the total points pot, then Sunday money.
-       Kyle, 2026-09-13, choosing between two banners stacked and one taking
-       turns: "One banner taking turns might be easiest." A second banner would
-       take height from the list and shrink every row; this one leaves the list
-       exactly as it was proven on the club TV. It turns on every turn of the
-       page, not on the page number, because with three pages the page number
-       would show the pot twice running. The money shows at the right end only
-       once Kyle marks the event final, split among ties and rounded down. */
-    var potLeaders = Pts.leaders(rows,"total");
-    function amt(total, n){
-      var v = PURSE.final ? Pts.share(total, n) : 0;
-      return v ? h("span",{class:"amt",text:Pts.dollars(v) + (n > 1 ? " each" : "")}) : null;
-    }
-    var sunLeaders = Pts.leaders(rows,"sunday");
-    var anySunday = rows.some(function(r){ return r.sundayPlayed > 0; });
-    /* Say why only when the rule is actually biting: a team winning the pot
-       has more Sunday points than the team in line for the money. Otherwise
-       the board stays quiet, because nothing needs explaining. */
+    /* ONE BANNER, TAKING TURNS. Kyle, 2026-09-13: "One banner taking turns
+       might be easiest" — a second banner would take height from the list.
+       Until Final is sent it shows only the second pot ("the green banner
+       names the top of the leaderboard without the tournament being done ...
+       Just keep them shaded"), and the main pot's leaders are only the green
+       rows. Once Final: each paid place of the main pot, then the second pot,
+       one a turn, with the money at the right end — split among ties and
+       rounded down. It turns on every turn of the page, not on the page
+       number, so an odd number of pages still shows every banner. */
+    var pay = Pts.payout(rows, { places:N, prizes:SETUP.prizes, second:S2 });
+    var sunLeaders = S2.on ? Pts.leaders(rows,"sunday") : [];
+    /* eligible teams only, the same test as the record, so the two cannot name
+       different Sunday leaders */
+    var anySunday = S2.on && rows.some(function(r){ return r.sunEligible && r.sundayPlayed > 0; });
+    /* Say why only when the rule is actually biting: a team paid in the main
+       pot has more second-pot points than the team in line for it. */
     var blocked = anySunday && sunLeaders.length && rows.some(function(r){
       return !r.sunEligible && r.sundayPlayed && r.sunday > sunLeaders[0].sunday;
     });
-    /* ...but only once final. Kyle, 2026-09-13: "the green banner names the
-       top of the leaderboard without the tournament being done. Maybe we
-       shouldn't do that. Just keep them shaded". Until Final is sent the
-       banner is Sunday money on every turn and the pot leader is only the
-       green row in the list. */
-    if(PURSE.final && turn % 2 === 0) scr.appendChild(h("div",{class:"sun pot"},[
-      h("span",{class:"lab",text:"First place"}),
-      h("span",{class:"num",text:show(potLeaders[0].total)}),
-      h("span",{class:"who",text:potLeaders.map(function(r){ return r.name; }).join("   ·   ")}),
-      amt(PURSE.pot, potLeaders.length)
-    ]));
-    else scr.appendChild(h("div",{class:"sun"},[
-      h("span",{class:"lab",text:"Sunday money"}),
-      anySunday && sunLeaders.length ? h("span",{class:"num",text:String(sunLeaders[0].sunday)}) : null,
-      h("span",{class:"who",text: anySunday && sunLeaders.length
-        ? sunLeaders.map(function(r){ return r.name; }).join("   ·   ")
-        : "Matches 4 and 5"}),
-      blocked ? h("span",{class:"why",text:"pot winner not eligible"}) : null,
-      amt(PURSE.sun, anySunday ? sunLeaders.length : 0)
-    ]));
+    function amt(each, count){
+      return each ? h("span",{class:"amt",text:Pts.dollars(each) + (count > 1 ? " each" : "")}) : null;
+    }
+    /* Final sent AND the money adds up to $100 a team — checked here too, in
+       case the money was changed after Final */
+    var ready = Pts.moneyReady(teamCount(), SETUP);
+    var turns = [];
+    if(ready) pay.main.forEach(function(g){ turns.push({ main:g }); });
+    if(S2.on) turns.push({ second:true });
+    var t = turns.length ? turns[turn % turns.length] : null;
+    if(t && t.main){
+      var g = t.main;
+      scr.appendChild(h("div",{class:"sun pot"},[
+        /* a tie across places says so: "1st + 2nd — tie" */
+        h("span",{class:"lab",text: g.places.length > 1
+          ? g.places.map(Pts.placeName).join(" + ") + " — tie"
+          : (PLACE_WORDS[g.start] || Pts.placeName(g.start)) + " place" + (g.teams.length > 1 ? " — tie" : "")}),
+        h("span",{class:"num",text:show(g.teams[0].total)}),
+        h("span",{class:"who",text:g.teams.map(function(r){ return r.name; }).join("   ·   ")}),
+        amt(g.each, g.teams.length)
+      ]));
+    } else if(t && t.second){
+      scr.appendChild(h("div",{class:"sun"},[
+        h("span",{class:"lab",text:S2.name}),
+        anySunday && sunLeaders.length ? h("span",{class:"num",text:show(sunLeaders[0].sunday)}) : null,
+        h("span",{class:"who",text: anySunday && sunLeaders.length
+          ? sunLeaders.map(function(r){ return r.name; }).join("   ·   ")
+          : "Matches " + (R-1) + " and " + R}),
+        blocked ? h("span",{class:"why",text:(N === 1 ? "pot winner not eligible" : "main pot winners not eligible")}) : null,
+        ready ? amt(Pts.share(S2.amount, anySunday ? sunLeaders.length : 0), sunLeaders.length) : null
+      ]));
+    }
 
     /* One full-width column, ROWS teams at a time. Every page renders the
        same number of rows — the short last page is padded with blanks — so the
        type never jumps size as it turns over. */
-    var pages = Math.max(1, Math.ceil(rows.length / ROWS));
+    var pages = Math.max(1, Math.ceil(rows.length / PER));
     if(page >= pages) page = 0;
-    var part = rows.slice(page * ROWS, page * ROWS + ROWS);
-    while(part.length < ROWS && pages > 1) part.push(null);
+    var slice = rows.slice(page * PER, page * PER + PER);
+    while(slice.length < PER && pages > 1) slice.push(null);
 
-    var cols = h("div",{class:"cols"},[ h("div",{class:"col"},[table(part)]) ]);
+    var cols = h("div",{class:"cols"},[ h("div",{class:"col"},[table(slice)]) ]);
     scr.appendChild(cols);
 
     if(pages > 1){
@@ -456,22 +535,28 @@
         fill.style.width = "100%";
       });
     }
-    fit(cols);
+    var fitting = fit(cols);
+    /* Still too many at the smallest type: the checkers found "all" put 24 of
+       40 teams below a 1920x1080 screen. Take as many as fit a page and turn
+       pages instead, so every team is seen. */
+    if(fitting >= 0 && fitting < slice.length && Math.max(4, fitting) < PER){
+      rowCap = Math.max(4, fitting);
+      renderBoard();
+    }
   }
 
   /* A TV is whatever height it is, and a row that falls off the bottom is a
-     team that is not on the board. Shrink until all 25 fit. Only on a big
-     screen: a phone scrolls, which is what a phone should do. */
+     team that is not on the board. Shrink until they fit. Only on a big
+     screen: a phone scrolls, which is what a phone should do. Returns -1 when
+     everything fits, otherwise how many rows fit at the smallest type. */
+  var rowCap = 999;
   function fit(cols){
     var root = document.documentElement;
     root.style.setProperty("--k", "1");
-    if(window.innerWidth < 900) return;      /* a phone scrolls, as it should */
-    /* Measure against the bottom of the screen, not the container's own box:
-       clientHeight includes padding, and believing it left the last team two
-       pixels off the bottom of the TV. SAFE also buys a little room for a
-       television that overscans. */
-    /* A television crops the edge of the picture (overscan), so keep a real
-       margin rather than 10px: 3% of the height, never less than 18px. */
+    if(window.innerWidth < 900) return -1;   /* a phone scrolls, as it should */
+    /* Measure against the bottom of the screen, not the container's own box,
+       and keep a real margin for a television that crops the edge of the
+       picture (overscan): 3% of the height, never less than 18px. */
     var SAFE = Math.max(18, Math.round(window.innerHeight * 0.03));
     var top = cols.getBoundingClientRect().top;
     var target = window.innerHeight - SAFE;
@@ -485,36 +570,42 @@
       k = Math.max(0.45, k * Math.min(0.985, (target - top) / (lowest() - top)));
       root.style.setProperty("--k", String(k));
     }
+    if(lowest() <= target) return -1;
+    return [].filter.call(cols.querySelectorAll("tbody tr"), function(tr){
+      return tr.getBoundingClientRect().bottom <= target;
+    }).length;
+  }
+
+  /* the second pot's column heading: "Sun" for Sunday money, otherwise the
+     first word of its name */
+  function secondHead(name){
+    return /^sunday/i.test(name) ? "Sun" : String(name).split(/\s+/)[0].slice(0, 6);
   }
 
   function table(part){
-    /* One colgroup so the shares are declared once. The team column is the
-       widest share on purpose: a name is the only thing on this board that
-       cannot be guessed from context. */
-    var CLS = ["c-pos","c-team","c-r","c-r","c-r","c-r","c-r","c-tot","c-sun"];
-    var group = h("colgroup",{}, CLS.map(function(c){ return h("col",{class:c}); }));
-    var head = h("tr",{},[
-      h("th",{class:"l",text:""}), h("th",{class:"l",text:"Team"}),
-      h("th",{text:"1"}),h("th",{text:"2"}),h("th",{text:"3"}),h("th",{text:"4"}),h("th",{text:"5"}),
-      h("th",{text:"Tot"}), h("th",{text:"Sun"})
-    ]);
+    var R = SETUP.rounds, S2 = SETUP.second;
+    /* One colgroup so the shares are declared once, from Pts.shares(). The
+       team column is the widest share on purpose: a name is the only thing on
+       this board that cannot be guessed from context. */
+    var W = Pts.shares(R, S2.on, window.innerWidth < 900);
+    var spec = [["pos", W.pos], ["team", W.team]];
+    for(var k = 0; k < R; k++) spec.push(["r", W.r]);
+    spec.push(["tot", W.tot]);
+    if(S2.on) spec.push(["sn", W.sun]);
+    var group = h("colgroup",{}, spec.map(function(c){ return h("col",{style:"width:" + c[1] + "%"}); }));
+    var heads = [h("th",{class:"l",text:""}), h("th",{class:"l",text:"Team"})];
+    for(k = 0; k < R; k++) heads.push(h("th",{text:String(k + 1)}));
+    heads.push(h("th",{text:"Tot"}));
+    if(S2.on) heads.push(h("th",{text:secondHead(S2.name)}));
+    var head = h("tr",{}, heads);
     var body = part.map(function(r){
-      /* A filler row keeps the last page the same height as the others so the
-         type does not jump between pages. It carries the same nine cells,
-         because one cell in a nine-column table shifts the columns, and it has
-         its own class: "pad" is already the entry screen's scrolling area, so
-         this row was inheriting that background and showing as a grey block.
-         Its cells carry the real cells' classes and a non-breaking space, so
-         the row is exactly as tall as a team's. Kyle, 2026-09-13: "i think the
-         font size is changing from page 1 to page 2!!" — it was. Empty cells
-         with no padding made the filler rows zero pixels tall, so the short
-         last page looked shorter to fit() and got bigger type: 10% bigger at
-         13 a page, 27% at 9. */
+      /* A filler row keeps the last page the same height as the others. It
+         carries the same cells as a real row, with the real cells' classes and
+         a non-breaking space, so it is exactly as tall. Kyle, 2026-09-13: "i
+         think the font size is changing from page 1 to page 2!!" — it was,
+         because empty unpadded filler rows were zero pixels tall. */
       var NB = " ";
-      if(!r) return h("tr",{class:"blankrow"},[
-        h("td",{class:"pos",text:NB}),h("td",{class:"team",text:NB}),h("td",{class:"r",text:NB}),h("td",{class:"r",text:NB}),h("td",{class:"r",text:NB}),
-        h("td",{class:"r",text:NB}),h("td",{class:"r",text:NB}),h("td",{class:"tot",text:NB}),h("td",{class:"sn",text:NB})
-      ]);
+      if(!r) return h("tr",{class:"blankrow"}, spec.map(function(c){ return h("td",{class:c[0],text:NB}); }));
       var cells = [
         h("td",{class:"pos",text:String(r.rank)}),
         h("td",{class:"team",text:r.name})
@@ -523,8 +614,8 @@
         cells.push(h("td",{class:"r"+(v===null?" dash":""),text:show(v)}));
       });
       cells.push(h("td",{class:"tot",text:show(r.total)}));
-      cells.push(h("td",{class:"sn"+(r.sunEligible?"":" out"),text:r.sundayPlayed?show(r.sunday):"–"}));
-      return h("tr",{class:(r.rank===1?"lead ":"")+(r.sundayPlayed&&r.sunEligible&&r.sunRank===1?"sunlead":"")},cells);
+      if(S2.on) cells.push(h("td",{class:"sn"+(r.sunEligible?"":" out"),text:r.sundayPlayed?show(r.sunday):"–"}));
+      return h("tr",{class:(r.paidPlace?"lead ":"")+(S2.on&&r.sundayPlayed&&r.sunEligible&&r.sunRank===1?"sunlead":"")},cells);
     });
     return h("table",{},[group, h("thead",{},[head]), h("tbody",{},body)]);
   }
@@ -535,72 +626,16 @@
     scr.innerHTML = "";
     scr.appendChild(topBand([{text:"Entry"},{text:postState||(MG_API?"TV connected":"This phone only")}]));
 
-    var rounds = h("div",{class:"rounds"});
-    for(var k=0;k<5;k++)(function(k){
-      rounds.appendChild(h("button",{class:(k===round0?"on":""),text:"Match "+(k+1),
-        onclick:function(){ round0=k; renderEntry(); }}));
-    })(k);
-    scr.appendChild(rounds);
-    scr.appendChild(h("div",{class:"count",id:"count",text:count()}));
-
-    var pad = h("div",{class:"pad"});
-    TEAMS.forEach(function(pair,i){
-      pad.appendChild(h("div",{class:"row"+(points[i][round0]===null?"":" done"),id:"row"+i},[
-        h("div",{class:"nm",text:Pts.teamName(pair)}),
-        h("button",{class:"val"+(points[i][round0]===null?" empty":""),id:"val"+i,
-          text:show(points[i][round0]), onclick:function(){ pick(i); }})
-      ]));
+    var tabs = h("div",{class:"tabs"});
+    [["scores","Scores"],["teams","Teams"],["setup","Setup"]].forEach(function(t){
+      tabs.appendChild(h("button",{class:(tab === t[0] ? "on" : ""), text:t[1],
+        onclick:function(){ tidyTeams(); tab = t[0]; renderEntry(); }}));
     });
+    scr.appendChild(tabs);
 
-    var setup = h("div",{class:"setup"},[
-      h("label",{text:"Board title — the big line on the TV"}),
-      /* These boxes save without redrawing the screen. Kyle, 2026-09-13:
-         "tried to change the name of the tourni slightly and it didnt stick".
-         A box saves when it loses focus, and that is the same touch that lands
-         on Send to TV — so a redraw here replaced the Send button under his
-         finger and the send never happened. Only the words in the top band
-         are updated in place. */
-      h("input",{type:"text",value:getTitle(),
-        onchange:function(){ setTitle(this.value); document.title = getTitle(); retitle(); }}),
-      h("label",{text:"Event name — shows on the board",style:"margin-top:12px"}),
-      h("input",{type:"text",value:getEvent(),
-        onchange:function(){ setEvent(this.value); retitle(); }}),
-      h("label",{text:"TV key — type once, stays on this phone",style:"margin-top:12px"}),
-      h("input",{type:"password",value:getKey(),placeholder:"the POST_KEY from the script",
-        onchange:function(){ setKey(this.value); }}),
-      h("label",{text:"Points scale — from the event rules sheet",style:"margin-top:12px"}),
-      stepButtons(),
-      h("input",{type:"number",inputmode:"numeric",value:String(getMax()),
-        onchange:function(){ setMax(this.value); renderEntry(); }}),
-      h("label",{text:"TV board — teams on screen at once",style:"margin-top:12px"}),
-      choiceButtons(Pts.ROWS_CHOICES, getRows(), function(v){ setRows(v); renderEntry(); },
-        function(v){ return v >= TEAMS.length ? "all" : String(v); }),
-      h("label",{text:"TV board — seconds a page",style:"margin-top:12px"}),
-      choiceButtons(Pts.SECS_CHOICES, getSecs(), function(v){ setSecs(v); renderEntry(); },
-        function(v){ return String(v); }),
-      /* "First place money", not "pot money". Kyle, 2026-09-13: "you should
-         say first place money not pot money. The total pot = sum" — the pot is
-         first place and Sunday money together. */
-      h("label",{text:"First place money — whole dollars",style:"margin-top:12px"}),
-      h("input",{type:"number",inputmode:"numeric",min:"0",step:"1",value:(getPot()?String(getPot()):""),placeholder:"e.g. 2000",
-        onchange:function(){ setPot(this.value); }}),
-      h("label",{text:"Sunday money — whole dollars",style:"margin-top:12px"}),
-      h("input",{type:"number",inputmode:"numeric",min:"0",step:"1",value:(getSun()?String(getSun()):""),placeholder:"e.g. 500",
-        onchange:function(){ setSun(this.value); }}),
-      /* This one sends as it is tapped. Kyle, 2026-09-13: "Seems redundant to
-         have two buttons one for Final and One for Send to TV", then "Yes
-         combine them". Forgetting to send at the end of a long day is likelier
-         than a stray tap, and a stray tap is undone by tapping Not yet, which
-         sends too. */
-      h("label",{text:"TV board — show the money (sends to the TV as you tap)",style:"margin-top:12px"}),
-      choiceButtons([false, true], getFinal(), function(v){ setFinal(v); renderEntry(); post(); },
-        function(v){ return v ? "Final — show it" : "Not yet"; }),
-      h("div",{class:"note",style:"padding:8px 0 0",
-        text:"These reach the club screen the next time you Send to TV."})
-    ]);
-    pad.appendChild(setup);
-    pad.appendChild(h("div",{class:"note",text:"Tap a team to set its points. Saved on this phone straight away; Send to TV puts them on the club screen."}));
-    scr.appendChild(pad);
+    if(tab === "teams") scr.appendChild(teamsTab());
+    else if(tab === "setup") scr.appendChild(setupTab());
+    else scoresTab(scr);
 
     scr.appendChild(h("div",{class:"bar"},[
       h("button",{class:"ghost",text:(empty() ? "Get from TV" : "Board"),
@@ -608,35 +643,346 @@
       h("button",{text:"Send to TV",onclick:post})
     ]));
   }
+
+  function scoresTab(scr){
+    var R = SETUP.rounds;
+    if(round0 >= R) round0 = 0;
+    var rounds = h("div",{class:"rounds"},[h("span",{class:"lab",text:"Match"})]);
+    for(var k=0;k<R;k++)(function(k){
+      rounds.appendChild(h("button",{class:(k===round0?"on":""),text:String(k+1),
+        onclick:function(){ round0=k; renderEntry(); }}));
+    })(k);
+    scr.appendChild(rounds);
+    scr.appendChild(h("div",{class:"count",id:"count",text:count()}));
+
+    var pad = h("div",{class:"pad"});
+    if(!TEAMS.length) pad.appendChild(h("div",{class:"warnbox",text:"No teams yet. Add them on the Teams tab."}));
+    TEAMS.forEach(function(pair,i){
+      pad.appendChild(h("div",{class:"row"+(points[i][round0]===null?"":" done"),id:"row"+i},[
+        h("div",{class:"nm",text:Pts.teamName(pair) || "Team " + (i+1)}),
+        h("button",{class:"val"+(points[i][round0]===null?" empty":""),id:"val"+i,
+          text:show(points[i][round0]), onclick:function(){ pick(i); }})
+      ]));
+    });
+    pad.appendChild(h("div",{class:"note",text:"Tap a team to set its points. Saved on this phone straight away; Send to TV puts them on the club screen."}));
+    scr.appendChild(pad);
+  }
+
+  /* THE TEAMS TAB. Kyle, 2026-09-13: "in case you go down, I need an option
+     to enter the teams by hand." Two names a team, saved as typed. The boxes
+     save without redrawing the screen, so a tap on Send to TV straight after
+     typing is not lost (the same fault that ate a title change that morning). */
+  function teamsTab(){
+    var pad = h("div",{class:"pad"});
+    pad.appendChild(h("div",{class:"count",style:"padding:0",text:TEAMS.length + (TEAMS.length === 1 ? " team" : " teams")}));
+    /* filled here, while the box is still being built: looking it up by id
+       before it is on the screen found nothing, and left an empty bar */
+    var warn = h("div",{class:"warnbox",id:"dups"});
+    pad.appendChild(warn);
+    showDups(warn);
+    TEAMS.forEach(function(pair, i){
+      pad.appendChild(h("div",{class:"trow"},[
+        h("div",{class:"n",text:String(i+1)}),
+        h("div",{class:"names"},[
+          h("input",{type:"text",value:pair[0],placeholder:"Player",autocapitalize:"words",
+            onchange:function(){ TEAMS[i][0] = this.value.trim(); setTeams(TEAMS); showDups(); }}),
+          h("input",{type:"text",value:pair[1],placeholder:"Player",autocapitalize:"words",
+            onchange:function(){ TEAMS[i][1] = this.value.trim(); setTeams(TEAMS); showDups(); }})
+        ]),
+        h("button",{class:"x",text:"✕",onclick:function(){ removeTeam(i); }})
+      ]));
+    });
+    pad.appendChild(h("button",{class:"bigbtn solid",text:"Add a team",onclick:function(){
+      TEAMS.push(["",""]); points.push(fitPoints([], 1)[0]);
+      setTeams(TEAMS); save(); renderEntry();
+      var inputs = document.querySelectorAll(".trow input");
+      if(inputs.length) try{ inputs[inputs.length - 2].focus(); }catch(e){}
+    }}));
+    pad.appendChild(h("div",{class:"note",text:"Two names a team, saved as you type. Send to TV puts the teams on the board. A photo of the circled sheet can also be turned into this list for you to check."}));
+    return pad;
+  }
+  function showDups(el){
+    var box = el || document.getElementById("dups");
+    if(!box) return;
+    var d = Pts.duplicates(TEAMS);
+    box.textContent = d.length ? "Typed twice: " + d.join(", ") : "";
+    box.hidden = !d.length;
+    box.style.display = d.length ? "" : "none";
+  }
+  /* THE MONEY MUST ADD UP. Kyle, 2026-09-13: "Teams are always $100 per team.
+     So the total payouts better match the math!" */
+  /* every team that is in: named, or with a score (a team can be paid either way) */
+  function teamCount(){ return TEAMS.filter(function(p, i){ return p[0] || p[1] || hasScores(i); }).length; }
+  function purseText(c){
+    return c.teams + (c.teams === 1 ? " team" : " teams") + " × " + Pts.dollars(Pts.ENTRY || 100) + " = " + Pts.dollars(c.entries) +
+      ". Money typed: " + Pts.dollars(c.typed) +
+      (c.diff === 0 ? " — it matches." : c.diff < 0 ? " — " + Pts.dollars(-c.diff) + " short." : " — " + Pts.dollars(c.diff) + " too much.");
+  }
+  function showPurse(el){
+    var box = el || document.getElementById("purse");
+    if(!box) return;
+    var c = Pts.purse(teamCount(), localSetup()), bad = Pts.moneyProblems(teamCount(), localSetup());
+    box.textContent = bad.length
+      ? bad.join(". ") + "." + (getFinal() ? " Final is on, but the TV shows no money until this is fixed." : "")
+      : purseText(c);
+    box.className = bad.length ? "warnbox" : "note";
+    box.style.padding = bad.length ? "" : "10px 0 0";
+  }
+  /* Final is refused when the money does not add up — no "show it anyway".
+     Kyle, 2026-09-13: "If the money doesnt match don't let me even show it on
+     the tv!" Not yet always goes through. */
+  function tapFinal(v){
+    function go(){ setFinal(v); SETUP = localSetup(); renderEntry(); post(); }
+    var c = Pts.purse(teamCount(), localSetup()), bad = Pts.moneyProblems(teamCount(), localSetup());
+    if(v && bad.length){
+      confirmSheet(c.diff !== 0 ? "The money doesn't add up" : "The money isn't right",
+        bad.join(". ") + ". Fix the money first; nothing was sent.",
+        [["Go back and fix it", null, true]]);
+      return;
+    }
+    /* A blank score counts as nothing, so a forgotten card could move the
+       money. This asks about MISSING scores only — it never looks at what a
+       score is ("don't ever create any check that relies on points"). A
+       cancelled match is zeros, which are scores. */
+    var R = localSetup().rounds, missing = [];
+    TEAMS.forEach(function(p, i){
+      if(!(p[0] || p[1] || hasScores(i))) return;
+      for(var k = 0; k < R; k++) if(points[i][k] === null){ missing.push({ i:i, k:k }); }
+    });
+    if(v && missing.length){
+      var teams = {}, matches = {};
+      missing.forEach(function(m){ teams[m.i] = 1; matches[m.k + 1] = 1; });
+      var nt = Object.keys(teams).length, ms = Object.keys(matches);
+      confirmSheet("Some scores are missing",
+        nt + (nt === 1 ? " team has" : " teams have") + " no score for match" + (ms.length > 1 ? "es " : " ") + ms.join(", ") + ". A missing score counts as nothing.",
+        [["Go back and fill them in", null, true], ["Final anyway", go]]);
+      return;
+    }
+    go();
+  }
+  function hasScores(i){ return (points[i] || []).some(function(v){ return v !== null; }); }
+  function removeTeam(i){
+    function go(){ TEAMS.splice(i, 1); points.splice(i, 1); setTeams(TEAMS); save(); renderEntry(); }
+    /* asks only when the team has scores */
+    if(!hasScores(i)) return go();
+    confirmSheet("Remove " + (Pts.teamName(TEAMS[i]) || "team " + (i+1)) + "?",
+      "Their scores on this phone go too.",
+      [["Remove", go, true], ["Cancel", null]]);
+  }
+  /* a team with no names and no scores is a row that was added and never used */
+  function tidyTeams(){
+    var keep = [], kept = [];
+    TEAMS.forEach(function(p, i){ if(p[0] || p[1] || hasScores(i)){ keep.push(p); kept.push(points[i]); } });
+    if(keep.length !== TEAMS.length){ TEAMS = keep; points = kept; setTeams(TEAMS); save(); }
+  }
+
+  /* THE SETUP TAB: the board, the shape of the event, and the money. */
+  function setupTab(){
+    var R = SETUP.rounds, N = SETUP.places, S2 = SETUP.second;
+    var pad = h("div",{class:"pad"});
+    function label(text){ return h("label",{text:text,style:"margin-top:12px"}); }
+
+    pad.appendChild(h("div",{class:"setup"},[
+      h("div",{class:"sect",text:"The board"}),
+      h("label",{text:"Board title — the big line on the TV"}),
+      /* saved without a redraw: see the Teams tab */
+      h("input",{type:"text",value:getTitle(),
+        onchange:function(){ setTitle(this.value); document.title = getTitle(); retitle(); }}),
+      label("Event name — shows on the board"),
+      h("input",{type:"text",value:getEvent(),placeholder:"e.g. 4-Day Member Guest",
+        onchange:function(){ setEvent(this.value); retitle(); }}),
+      label("TV key — type once, stays on this phone"),
+      h("input",{type:"password",value:getKey(),placeholder:"the POST_KEY from the script",
+        onchange:function(){ setKey(this.value); }})
+    ]));
+
+    /* Kyle, 2026-09-13: "for the 4 day there are 7 matches ... For the 3 day
+       and the member member there are five matches. So we should have a
+       toggle for 7 vs 5." */
+    pad.appendChild(h("div",{class:"setup"},[
+      h("div",{class:"sect",text:"This event"}),
+      h("label",{text:"Matches"}),
+      choiceButtons(Pts.ROUND_CHOICES, R, function(v){ setRounds(v); SETUP = localSetup(); renderEntry(); },
+        function(v){ return v + " matches"; })
+      /* No points settings — no scale, no highest, no lowest. Kyle,
+         2026-09-13: "don't ever create any check that relies on points". */
+    ]));
+
+    /* The money. Kyle, 2026-09-13: "we should also decide if we are paying 1,
+       2, or 3 places in the main pot", "most usually, I pay 1 total, 1
+       Sunday", and "you should say first place money not pot money". */
+    var money = [
+      h("div",{class:"sect",text:"The money"}),
+      h("label",{text:"Main pot pays"}),
+      choiceButtons(Pts.PLACE_CHOICES, N, function(v){ setPlaces(v); SETUP = localSetup(); renderEntry(); },
+        function(v){ return v === 1 ? "1 place" : v + " places"; })
+    ];
+    for(var p = 1; p <= N; p++)(function(p){
+      money.push(label(Pts.placeName(p) + " place money — whole dollars"));
+      money.push(h("input",{type:"number",inputmode:"numeric",min:"0",step:"1",
+        value:(SETUP.prizes[p-1] ? String(SETUP.prizes[p-1]) : ""),placeholder:(p === 1 ? "e.g. 2000" : ""),
+        oninput:function(){ setPrize(p, this.value); SETUP = localSetup(); showPurse(); }}));
+    })(p);
+    money.push(label("Second pot — always the last two matches (" + (R-1) + " and " + R + ")"));
+    money.push(choiceButtons([true, false], S2.on, function(v){ var s = getSecond(); s.on = v; setSecond(s); SETUP = localSetup(); renderEntry(); },
+      function(v){ return v ? "On" : "Off"; }));
+    if(S2.on){
+      money.push(label("Its name"));
+      money.push(h("input",{type:"text",value:S2.name,
+        onchange:function(){ var s = getSecond(); s.name = Pts.secondName(this.value); setSecond(s); SETUP = localSetup(); }}));
+      money.push(label(S2.name + " — whole dollars"));
+      money.push(h("input",{type:"number",inputmode:"numeric",min:"0",step:"1",value:(S2.amount ? String(S2.amount) : ""),placeholder:"e.g. 500",
+        oninput:function(){ var s = getSecond(); s.amount = Pts.money(this.value); setSecond(s); SETUP = localSetup(); showPurse(); }}));
+    }
+    /* This one sends as it is tapped. Kyle, 2026-09-13: "Seems redundant to
+       have two buttons one for Final and One for Send to TV", then "Yes
+       combine them". A stray tap is undone by tapping Not yet, which sends too. */
+    /* the check: teams × $100 against the money typed, updated as it is typed */
+    var purseBox = h("div",{id:"purse"});
+    money.push(purseBox);
+    showPurse(purseBox);
+    money.push(label("TV board — show the money (sends to the TV as you tap)"));
+    money.push(choiceButtons([false, true], getFinal(), function(v){ tapFinal(v); },
+      function(v){ return v ? "Final — show it" : "Not yet"; }));
+    pad.appendChild(h("div",{class:"setup"}, money));
+
+    pad.appendChild(h("div",{class:"setup"},[
+      h("div",{class:"sect",text:"TV board"}),
+      h("label",{text:"TV board — teams on screen at once"}),
+      choiceButtons(Pts.ROWS_CHOICES, getRows(), function(v){ setRows(v); renderEntry(); },
+        function(v){ return v >= 100 ? "all" : String(v); }),
+      label("TV board — seconds a page"),
+      choiceButtons(Pts.SECS_CHOICES, getSecs(), function(v){ setSecs(v); renderEntry(); },
+        function(v){ return String(v); }),
+      h("div",{class:"note",style:"padding:8px 0 0",
+        text:"Everything on this tab reaches the club screen the next time you Send to TV."})
+    ]));
+
+    /* Kyle, 2026-09-13: "It might be nice to memorialize the end of every
+       tournament", and "what will be the protocol for starting a new
+       tournament?" Share results is the record when no seat is there to close
+       it out; a new tournament will not start without asking about it first. */
+    pad.appendChild(h("div",{class:"setup"},[
+      h("div",{class:"sect",text:"Tournament"}),
+      h("button",{class:"bigbtn",text:"Share results",onclick:shareResults}),
+      h("button",{class:"bigbtn quiet",text:"Start a new tournament",onclick:newTournament})
+    ]));
+    return pad;
+  }
+
   function count(){ return Pts.entered(points, round0) + " of " + TEAMS.length + " in for match " + (round0+1); }
   function empty(){ return Pts.roundsIn(points) === 0; }
 
-  /* Bring the scores back down from the channel. Kyle, 2026-09-12, after
-     re-adding the app to his home screen: "downloaded it from safari and it
-     wiped out all the scores". Nothing was lost — an iPhone home-screen app
-     gets its own storage, so that copy opened with none. The channel is the
-     copy that survives a phone, so entry can read it as well as write it.
-     It only ever lands on an empty screen, so it cannot wipe work in hand. */
+  /* a sheet from the bottom of the screen, a question and its answers */
+  function confirmSheet(title, sub, buttons){
+    var sheet = h("div",{class:"sheet",onclick:function(e){ if(e.target === sheet) close(); }});
+    var inner = h("div",{class:"sheetin"},[
+      h("div",{class:"sheetnm",text:title}),
+      sub ? h("div",{class:"sheetsub",text:sub}) : null
+    ]);
+    buttons.forEach(function(b){
+      inner.appendChild(h("button",{class:"bigbtn" + (b[2] ? " solid" : " quiet"),text:b[0],
+        onclick:function(){ close(); if(b[1]) b[1](); }}));
+    });
+    sheet.appendChild(inner);
+    function close(){ if(sheet.parentNode) sheet.parentNode.removeChild(sheet); }
+    document.body.appendChild(sheet);
+  }
+
+  /* STARTING A NEW TOURNAMENT. The channel holds one event, and the first
+     send of the next one overwrites it, so this asks about the record first. */
+  function newTournament(){
+    confirmSheet("Start a new tournament?",
+      "This clears every score on this phone. Save the last one first: ask Claude to close it out, or tap Share results.",
+      [["Share results first", shareResults],
+       ["It's saved — keep these teams", function(){ startNew(false); }, true],
+       ["It's saved — clear the teams too", function(){ startNew(true); }, true],
+       ["Cancel", null]]);
+  }
+  function startNew(clearTeams){
+    if(clearTeams){ TEAMS = []; setTeams(TEAMS); }
+    points = fitPoints([], TEAMS.length); save();
+    setFinal(false); setPrizes([0,0,0]);
+    var s = getSecond(); s.amount = 0; setSecond(s);
+    setEvent("");
+    SETUP = localSetup();
+    round0 = 0; tab = clearTeams ? "teams" : "setup";
+    postState = "New tournament — not sent to the TV yet";
+    renderEntry();
+  }
+
+  /* SHARE RESULTS: the same Excel record a seat saves, built on the phone and
+     handed to the share sheet (Mail, Messages, Save to Files). */
+  function today(){ var d = new Date(); return d.getFullYear() + "-" + ("0" + (d.getMonth()+1)).slice(-2) + "-" + ("0" + d.getDate()).slice(-2); }
+  function shareResults(){
+    if(!window.Record){ flash("Share needs the new version: close and reopen the app"); return; }
+    var round = roundToSend(), date = today(), bytes, name = window.Record.fileName(round, date);
+    try{ bytes = window.Record.build(round, { date:date, note:"Shared from the phone" }); }
+    catch(e){ flash("Could not make the file: " + e.message); return; }
+    var type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+    /* a share that fails for any reason but a cancel falls back to saving the
+       file, so the record is never simply lost */
+    function download(){
+      try{
+        var url = URL.createObjectURL(new Blob([bytes], { type:type }));
+        var a = h("a",{ href:url, download:name });
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        setTimeout(function(){ URL.revokeObjectURL(url); }, 10000);
+        flash("Saved " + name);
+      }catch(e){ flash("Could not share: " + e.message); }
+    }
+    try{
+      var file = new File([bytes], name, { type:type });
+      if(navigator.canShare && navigator.canShare({ files:[file] })){
+        navigator.share({ files:[file], title:name })
+          .then(function(){ flash("Shared " + name); })
+          .catch(function(e){ if(e && e.name === "AbortError") return; download(); });
+        return;
+      }
+    }catch(e){}
+    download();
+  }
+
+  /* Bring everything back down from the channel. Kyle, 2026-09-12: "downloaded
+     it from safari and it wiped out all the scores" — an iPhone home-screen app
+     gets its own storage. The channel is the copy that survives a phone. It
+     only ever lands on an empty screen, so it cannot wipe work in hand. */
+  /* a phone that has never saved a team list or a score */
+  function freshPhone(){ return read(TEAMSTORE) === null && empty(); }
   function grab(){
     if(!MG_API){ flash("No TV address"); return; }
     flash("Getting…");
     fetch(MG_API + (MG_API.indexOf("?")>=0?"&":"?") + "board=vtp&t=" + Date.now())
       .then(function(r){ return r.json(); })
       .then(function(j){
-        if(j && j.format === "vtp-live-v1" && Array.isArray(j.points) && j.points.length === TEAMS.length){
+        if(j && j.format === "vtp-live-v1" && Array.isArray(j.points) && Array.isArray(j.teams) && j.points.length === j.teams.length){
           if(!empty()){ flash("Not empty — nothing changed"); return; }
-          points = j.points;
-          if(j.event) setEvent(j.event);
-          save();
-          postState = "Got " + Pts.roundsIn(points) + " match(es) from the TV";
-          renderEntry();
+          /* a phone with its own teams or settings is asked first: the TV may
+             still hold the tournament that was just finished */
+          if(!freshPhone()){
+            confirmSheet("Replace this phone's teams and settings?",
+              "The TV has " + j.teams.length + " teams" + (j.event ? " for " + j.event : "") + ". If that is the tournament you just finished, tap Cancel.",
+              [["Replace with the TV's", function(){ takeFromTV(j); }, true], ["Cancel", function(){ flash("Nothing changed"); }]]);
+            return;
+          }
+          takeFromTV(j);
         } else {
           flash(j && j.empty ? "The TV has nothing yet" : "Nothing to get");
         }
       })
       .catch(function(e){ flash("Could not reach the TV: " + e.message); });
   }
-  function show(v){ return v === null ? "–" : (v === Math.round(v) ? String(v) : v.toFixed(1)); }
+  function takeFromTV(j){
+          TEAMS = Pts.cleanTeams(j.teams); setTeams(TEAMS);
+          points = fitPoints(j.points, TEAMS.length); save();
+          var S = Pts.setup(j);
+          setRounds(S.rounds); setPlaces(S.places); setPrizes(S.prizes); setSecond(S.second); setFinal(S.final);
+          if(j.event) setEvent(j.event);
+          if(j.title) setTitle(j.title);
+          SETUP = localSetup();
+          postState = "Got " + TEAMS.length + " teams and " + Pts.roundsIn(points, S.rounds) + " match(es) from the TV";
+          renderEntry();
+  }
 
   /* one row of choices, the current one filled in */
   function choiceButtons(choices, current, pick, label){
@@ -648,30 +994,35 @@
     return box;
   }
 
-  function stepButtons(){
-    var box = h("div",{class:"steps"});
-    Pts.STEPS.forEach(function(st){
-      box.appendChild(h("button",{class:(Pts.step(getStep()) === st ? "on" : ""),
-        text:(st === 1 ? "whole" : st === 0.5 ? "halves" : "quarters"),
-        onclick:function(){ setStep(st); renderEntry(); }}));
-    });
-    return box;
-  }
-
-  /* the panel: every value a match score can be, and nothing else. No keyboard,
-     so no typo and no number that is not on the scale. */
+  /* ONE TAP. Kyle, 2026-09-13: "I really like the one tap. So how about
+     numbers from 0 to 9 in half steps and a minus button?" Tap Minus first for
+     a negative. The buttons are a shortcut, not a limit — "don't ever create
+     any check that relies on points" — so Other opens the pad for any number
+     they do not show. */
   function pick(i){
     var cur = points[i][round0];
-    var grid = h("div",{class:"vals"});
-    Pts.scale(getStep(), getMax()).forEach(function(v){
-      grid.appendChild(h("button",{class:(cur === v ? "on" : ""), text:show(v),
-        onclick:function(){ setVal(i, v); close(); }}));
-    });
+    var neg = cur !== null && cur < 0;
+    var holder = h("div");
+    var minus = h("button",{class:"minus",text:"− Minus",onclick:function(){ neg = !neg; draw(); }});
+    function draw(){
+      holder.innerHTML = "";
+      var g = h("div",{class:"tap"});
+      for(var k = 0; k <= 18; k++)(function(v){
+        var val = (neg && v) ? -v : v;
+        g.appendChild(h("button",{class:(cur === val ? "on" : ""),text:show(val),
+          onclick:function(){ setVal(i, val); close(); }}));
+      })(k / 2);
+      g.appendChild(h("button",{class:"other",text:"Other",onclick:function(){ close(); typePad(i, neg); }}));
+      holder.appendChild(g);
+      minus.className = "minus" + (neg ? " on" : "");
+    }
+    draw();
     var sheet = h("div",{class:"sheet",onclick:function(e){ if(e.target === sheet) close(); }},[
       h("div",{class:"sheetin"},[
-        h("div",{class:"sheetnm",text:Pts.teamName(TEAMS[i])}),
+        h("div",{class:"sheetnm",text:Pts.teamName(TEAMS[i]) || "Team " + (i+1)}),
         h("div",{class:"sheetsub",text:"Match " + (round0+1)}),
-        grid,
+        minus,
+        holder,
         h("div",{class:"sheetfoot"},[
           h("button",{text:"Clear",onclick:function(){ setVal(i,null); close(); }}),
           h("button",{text:"Cancel",onclick:close})
@@ -682,48 +1033,124 @@
     document.body.appendChild(sheet);
   }
 
+  /* THE PAD, behind Other: any number at all — positive, negative, whole,
+     half or quarter — with a minus key (an iPhone number pad has none), shown
+     large before it is saved. */
+  function typePad(i, neg){
+    var cur = points[i][round0];
+    /* starts empty — or with a minus if Minus was on — never with the score
+       already saved: the checkers found 5, then 1 2 −, saved as −512 */
+    var typed = neg ? "-" : "";
+    var disp = h("div",{class:"padshow"});
+    /* blank until something is typed. Kyle, 2026-09-13: "I see a minus to the
+       left of zero and a minus at the top above the 8 — confusing": the
+       nothing-typed-yet dash looked like the minus key. A space keeps the
+       line's height so the keys don't jump when the first digit lands. */
+    function draw(){ disp.textContent = typed === "" ? " " : typed; }
+    function key(k){
+      if(k === "−") typed = typed.charAt(0) === "-" ? typed.slice(1) : "-" + typed;
+      else if(k === "."){ if(typed.indexOf(".") < 0) typed += (typed === "" || typed === "-") ? "0." : "."; }
+      else if(typed.replace("-", "").length < 7) typed += k;
+      draw();
+    }
+    var grid = h("div",{class:"keys"});
+    ["7","8","9","4","5","6","1","2","3","−","0","."].forEach(function(k){
+      grid.appendChild(h("button",{text:k,onclick:function(){ key(k); }}));
+    });
+    draw();
+    var sheet = h("div",{class:"sheet",onclick:function(e){ if(e.target === sheet) close(); }},[
+      h("div",{class:"sheetin"},[
+        h("div",{class:"sheetnm",text:Pts.teamName(TEAMS[i]) || "Team " + (i+1)}),
+        h("div",{class:"sheetsub",text:"Match " + (round0+1) + (cur === null ? "" : " · now " + show(cur))}),
+        disp,
+        grid,
+        h("div",{class:"sheetfoot"},[
+          h("button",{text:"⌫",onclick:function(){ typed = typed.slice(0, -1); draw(); }}),
+          h("button",{text:"Clear",onclick:function(){ setVal(i,null); close(); }}),
+          h("button",{class:"save",text:"Save",onclick:function(){
+            var v = Pts.score(typed);
+            if(typed !== "" && v === null){ disp.textContent = "Not a number"; return; }
+            setVal(i, v); close();
+          }})
+        ])
+      ])
+    ]);
+    function close(){ if(sheet.parentNode) sheet.parentNode.removeChild(sheet); }
+    document.body.appendChild(sheet);
+  }
+
   function setVal(i, v){
-    points[i][round0] = Pts.onScale(v, getStep(), getMax()) ? Number(v) : null;
+    points[i][round0] = Pts.score(v);
     save();
     var row = document.getElementById("row"+i), btn = document.getElementById("val"+i);
     if(row) row.className = "row" + (points[i][round0]===null?"":" done");
     if(btn){ btn.textContent = show(points[i][round0]); btn.className = "val" + (points[i][round0]===null?" empty":""); }
     var c = document.getElementById("count"); if(c) c.textContent = count();
   }
-  function getRows(){ try{ return Pts.rows(localStorage.getItem(ROWSTORE)); }catch(e){ return Pts.ROWS_DEFAULT; } }
-  function setRows(v){ try{ localStorage.setItem(ROWSTORE, String(Pts.rows(v))); }catch(e){} }
-  function getSecs(){ try{ return Pts.secs(localStorage.getItem(SECSTORE)); }catch(e){ return Pts.SECS_DEFAULT; } }
-  function setSecs(v){ try{ localStorage.setItem(SECSTORE, String(Pts.secs(v))); }catch(e){} }
-  function getPot(){ try{ return Pts.money(localStorage.getItem(POTSTORE)); }catch(e){ return 0; } }
-  function setPot(v){ try{ localStorage.setItem(POTSTORE, String(Pts.money(v))); }catch(e){} }
-  function getSun(){ try{ return Pts.money(localStorage.getItem(SUNSTORE)); }catch(e){ return 0; } }
-  function setSun(v){ try{ localStorage.setItem(SUNSTORE, String(Pts.money(v))); }catch(e){} }
-  function getFinal(){ try{ return localStorage.getItem(FINALSTORE) === "1"; }catch(e){ return false; } }
-  function setFinal(v){ try{ localStorage.setItem(FINALSTORE, v ? "1" : "0"); }catch(e){} }
-  function getStep(){ try{ return Pts.step(localStorage.getItem(STEPSTORE)); }catch(e){ return Pts.STEP; } }
-  function setStep(v){ try{ localStorage.setItem(STEPSTORE, String(Pts.step(v))); }catch(e){} }
-  function getMax(){ try{ return Pts.max(localStorage.getItem(MAXSTORE)); }catch(e){ return Pts.MAX; } }
-  function setMax(v){ try{ localStorage.setItem(MAXSTORE, String(Pts.max(v))); }catch(e){} }
-  function getTitle(){ try{ return localStorage.getItem(TITLESTORE) || TITLE_DEFAULT; }catch(e){ return TITLE_DEFAULT; } }
-  function setTitle(v){ try{ localStorage.setItem(TITLESTORE, String(v).trim() || TITLE_DEFAULT); }catch(e){} }
-  function getEvent(){ try{ return localStorage.getItem(EVSTORE) || EVENT_DEFAULT; }catch(e){ return EVENT_DEFAULT; } }
-  function setEvent(v){ try{ localStorage.setItem(EVSTORE, v.trim() || EVENT_DEFAULT); }catch(e){} }
-  function getKey(){ try{ return localStorage.getItem(KEYSTORE)||""; }catch(e){ return ""; } }
-  function setKey(v){ try{ localStorage.setItem(KEYSTORE, v); }catch(e){} }
+
+  /* ---------- settings on this phone ---------- */
+  function read(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } }
+  function write(k, v){ try{ localStorage.setItem(k, v); }catch(e){} }
+  function readJSON(k){ try{ var v = read(k); return v === null ? null : JSON.parse(v); }catch(e){ return null; } }
+  function getTeams(){ var t = readJSON(TEAMSTORE); return Array.isArray(t) ? Pts.cleanTeams(t) : Pts.cleanTeams(TEAMS_DEFAULT); }
+  function setTeams(t){ write(TEAMSTORE, JSON.stringify(t)); }
+  function getRounds(){ return Pts.rounds(read(ROUNDSTORE)); }
+  function setRounds(v){ write(ROUNDSTORE, String(Pts.rounds(v))); }
+  function getPlaces(){ return Pts.places(read(PLACESTORE)); }
+  function setPlaces(v){ write(PLACESTORE, String(Pts.places(v))); }
+  function getPrizes(){
+    var p = readJSON(PRIZESTORE);
+    if(!Array.isArray(p)) p = [read(POTSTORE)];       /* carried over from "First place money" */
+    return [Pts.money(p[0]), Pts.money(p[1]), Pts.money(p[2])];
+  }
+  function setPrizes(p){ write(PRIZESTORE, JSON.stringify([Pts.money(p[0]), Pts.money(p[1]), Pts.money(p[2])])); }
+  function setPrize(place, v){ var p = getPrizes(); p[place-1] = Pts.money(v); setPrizes(p); }
+  function getSecond(){
+    var s = readJSON(SECONDSTORE);
+    if(!s || typeof s !== "object") s = { on:true, amount:read(SUNSTORE) };
+    return { on:s.on !== false, name:Pts.secondName(s.name), amount:Pts.money(s.amount) };
+  }
+  function setSecond(s){ write(SECONDSTORE, JSON.stringify({ on:s.on !== false, name:Pts.secondName(s.name), amount:Pts.money(s.amount) })); }
+  function localSetup(){ return { rounds:getRounds(), places:getPlaces(), prizes:getPrizes(), second:getSecond(), final:getFinal() }; }
+  function getRows(){ return Pts.rows(read(ROWSTORE)); }
+  function setRows(v){ write(ROWSTORE, String(Pts.rows(v))); }
+  function getSecs(){ return Pts.secs(read(SECSTORE)); }
+  function setSecs(v){ write(SECSTORE, String(Pts.secs(v))); }
+  function getFinal(){ return read(FINALSTORE) === "1"; }
+  function setFinal(v){ write(FINALSTORE, v ? "1" : "0"); }
+  function getTitle(){ return read(TITLESTORE) || TITLE_DEFAULT; }
+  function setTitle(v){ write(TITLESTORE, String(v).trim() || TITLE_DEFAULT); }
+  /* a new tournament empties the event name, so empty is kept as empty */
+  function getEvent(){ var v = read(EVSTORE); return v === null ? EVENT_DEFAULT : v; }
+  function setEvent(v){ write(EVSTORE, String(v).trim()); }
+  function getKey(){ return read(KEYSTORE) || ""; }
+  function setKey(v){ write(KEYSTORE, v); }
 
   /* ---------- the channel ---------- */
+  /* Everything the TV needs, in one send. No pot / sun fields: a board still
+     running the old version would show that money with no $100 check, so it
+     gets none — reload the club TV once after publishing. A team with no names
+     and no scores is left out, without touching the phone's own list. */
+  function roundToSend(){
+    var S = localSetup(), t = [], p = [];
+    TEAMS.forEach(function(pair, i){ if(pair[0] || pair[1] || hasScores(i)){ t.push(pair); p.push(points[i]); } });
+    return {
+      format:"vtp-live-v1", title:getTitle(), event:getEvent(), posted:new Date().toISOString(),
+      rows:getRows(), secs:getSecs(),
+      rounds:S.rounds, places:S.places, prizes:S.prizes, second:S.second, final:S.final,
+      teams:t, points:p
+    };
+  }
   function post(){
     if(!MG_API){ flash("No TV address set yet"); return; }
     if(!getKey()){ flash("Type the TV key first"); return; }
+    /* no tidying here: dropping a blank team while the Teams tab is on screen
+       left its boxes pointing at the wrong team. roundToSend leaves blanks out. */
     flash("Sending…");
     fetch(MG_API, {
       method:"POST", redirect:"follow",
       headers:{"Content-Type":"text/plain;charset=utf-8"},
-      body: JSON.stringify({ key:getKey(), board:"vtp", round:{
-        format:"vtp-live-v1", title:getTitle(), event:getEvent(), posted:new Date().toISOString(),
-        rows:getRows(), secs:getSecs(), pot:getPot(), sun:getSun(), final:getFinal(),
-        teams:TEAMS, points:points
-      }})
+      body: JSON.stringify({ key:getKey(), board:"vtp", round:roundToSend() })
     }).then(function(r){ return r.json(); })
       .then(function(j){ flash(j && j.ok ? "Sent to TV" : "Not sent: " + ((j&&j.error)||"?")); })
       .catch(function(e){ flash("Not sent: " + e.message); });
@@ -737,19 +1164,23 @@
       .then(function(j){
         everFetched = true;
         if(j && j.format === "vtp-live-v1" && Array.isArray(j.points)){
-          points = j.points;
+          /* The teams, scores and set-up are the channel's. A payload from
+             before the Teams tab has no usable teams list of its own length,
+             and keeps the list this page starts with. */
+          if(Array.isArray(j.teams) && j.teams.length === j.points.length) TEAMS = Pts.cleanTeams(j.teams);
+          points = fitPoints(j.points, TEAMS.length);
+          SETUP = Pts.setup(j);
           /* Shown, never saved. Kyle's phone can open this board too, and
              writing the TV's copy of the name into its storage put the old
              name back over the one he had just typed. */
           TV_NAMES = { title:j.title || "", event:j.event || "" };
           retitle();
-          PURSE = { pot:Pts.money(j.pot), sun:Pts.money(j.sun), final:j.final === true };
           lastOK = Date.now();
           /* the phone decides how the board rotates; an address overrides it */
           var changed = false;
           if(!rowsLocked && j.rows && Pts.rows(j.rows) !== ROWS){ ROWS = Pts.rows(j.rows); changed = true; }
           if(!secsLocked && j.secs && Pts.secs(j.secs) !== SECS){ SECS = Pts.secs(j.secs); changed = true; }
-          if(changed) arm();
+          if(changed){ rowCap = 999; arm(); }
           /* only repaint when the scores actually changed, or every poll would
              restart the page turn and the board would never advance */
           if(changed || j.posted !== lastPosted){ lastPosted = j.posted || ""; page = 0; renderBoard(); }
@@ -758,30 +1189,30 @@
       .catch(function(){ everFetched = true; });
   }
 
-  /* Re-armed whenever the phone changes the rotation, so a new setting takes
-     effect on the next send rather than on the next reload. */
+  /* Re-armed whenever the phone changes the rotation. One timer turns the
+     page and the banner together; with every team on one page there is no page
+     to turn, but the banner still takes turns. */
   function arm(){
     if(pageTimer){ clearInterval(pageTimer); pageTimer = null; }
-    /* One timer turns the page and the banner together. With every team on
-       one page there is no page to turn, but the banner still takes turns. */
     pageTimer = setInterval(function(){ page++; turn++; renderBoard(); }, SECS * 1000);
   }
 
   /* ---------- keep the television awake ----------
-     Kyle, 2026-09-12: the stick blanked even with the screensaver set to
-     Never. A page that looks idle gets put to sleep, so the board says it is
-     in use, two ways, because Silk on a Fire TV is an old Chromium and may
-     have neither:
+     A page that looks idle gets put to sleep, so the board says it is in use,
+     two ways, because Silk on a Fire TV is an old Chromium and may have
+     neither:
 
        1. the Screen Wake Lock API, if it exists, re-taken whenever the tab
-          comes back to the front (a lock is dropped when it is hidden);
-       2. failing that, a tone far below hearing. A device with audio playing
-          is a device in use. It needs a user gesture to start, which the
-          first remote press supplies, so it arms itself on the first key or
-          click and not before.
+          comes back to the front (a lock is dropped when it is hidden). This
+          needs nothing from Kyle.
+       2. failing that, a 60 Hz tone at 0.0008 gain, far below hearing. A
+          browser only lets it start after a remote press or pointer move on
+          the page, and it then runs until the page closes. On 2026-09-12 the
+          TV stayed on for hours and Kyle never touched the remote, so it was
+          not this that did it. Kyle, 2026-09-13: "leave it for now".
 
-     Neither is guaranteed on this hardware. It is a nudge, not a promise, and
-     the TV's own energy saver is a separate setting on the TV. */
+     Neither is guaranteed on this hardware, and the TV's own energy saver is a
+     separate setting on the TV. */
   function keepAwake(){
     var lock = null;
     function take(){
@@ -822,17 +1253,21 @@
   /* ---------- go ---------- */
   if(ENTRY){
     renderEntry();
-    if(MG_API && Pts.roundsIn(points) === 0) grab();   /* a fresh phone fills itself */
+    /* Only a phone that has never held a tournament fills itself from the TV.
+       The checkers found (2026-09-13) that "no scores" was the test, so after
+       Start a new tournament, or teams from a link, one reopen pulled the
+       finished event back — old teams, scores, money and Final. */
+    if(MG_API && freshPhone() && !q.get("teams")) grab();
   }
   else{
     renderBoard();
     keepAwake();
-    window.addEventListener("resize", function(){ renderBoard(); });
+    window.addEventListener("resize", function(){ rowCap = 999; renderBoard(); });
     arm();
     /* Measure again once the web font has actually arrived. Barlow Condensed
        loads after the first paint and the rows grow when it lands, which is
-       what pushed the last teams off the bottom of the club TV on
-       2026-09-12. The timers cover a browser with no document.fonts. */
+       what pushed the last teams off the bottom of the club TV on 2026-09-12.
+       The timers cover a browser with no document.fonts. */
     if(document.fonts && document.fonts.ready) document.fonts.ready.then(function(){ renderBoard(); });
     setTimeout(renderBoard, 600);
     setTimeout(renderBoard, 2500);
