@@ -327,6 +327,16 @@
   function clock(ms){ var d = new Date(ms), h = d.getHours(), m = d.getMinutes();
     return (h%12||12) + ":" + (m<10?"0":"") + m + (h<12 ? "am" : "pm"); }
 
+  /* The board shows the names the TV was last sent; the entry screen shows
+     what this phone has typed. Neither overwrites the other. */
+  var TV_NAMES = { title:"", event:"" };
+  function shownTitle(){ return (!ENTRY && TV_NAMES.title) || getTitle(); }
+  function shownEvent(){ return (!ENTRY && TV_NAMES.event) || getEvent(); }
+  function retitle(){
+    var t = document.querySelector(".top h1"), e = document.querySelector(".top .event");
+    if(t) t.textContent = shownTitle();
+    if(e) e.textContent = shownEvent();
+  }
   function topBand(rightLines){
     /* Tapping the crest on the board goes to the entry screen, and on the
        entry screen goes back to the board. Kyle, 2026-09-12: "when I hit
@@ -339,8 +349,8 @@
           onclick:function(){ location.href = ENTRY ? "./" : "./?enter=1"; }}),
         h("div",{},[
           h("div",{class:"eyebrow",text:"Country Club of Waterbury"}),
-          h("h1",{text:getTitle()}),
-          h("div",{class:"event",text:getEvent()})
+          h("h1",{text:shownTitle()}),
+          h("div",{class:"event",text:shownEvent()})
         ])
       ]),
       h("div",{class:"right"}, rightLines.map(function(l){
@@ -410,7 +420,7 @@
        banner is Sunday money on every turn and the pot leader is only the
        green row in the list. */
     if(PURSE.final && turn % 2 === 0) scr.appendChild(h("div",{class:"sun pot"},[
-      h("span",{class:"lab",text:"Total points pot"}),
+      h("span",{class:"lab",text:"First place"}),
       h("span",{class:"num",text:show(potLeaders[0].total)}),
       h("span",{class:"who",text:potLeaders.map(function(r){ return r.name; }).join("   ·   ")}),
       amt(PURSE.pot, potLeaders.length)
@@ -544,11 +554,17 @@
 
     var setup = h("div",{class:"setup"},[
       h("label",{text:"Board title — the big line on the TV"}),
+      /* These boxes save without redrawing the screen. Kyle, 2026-09-13:
+         "tried to change the name of the tourni slightly and it didnt stick".
+         A box saves when it loses focus, and that is the same touch that lands
+         on Send to TV — so a redraw here replaced the Send button under his
+         finger and the send never happened. Only the words in the top band
+         are updated in place. */
       h("input",{type:"text",value:getTitle(),
-        onchange:function(){ setTitle(this.value); document.title = getTitle(); renderEntry(); }}),
+        onchange:function(){ setTitle(this.value); document.title = getTitle(); retitle(); }}),
       h("label",{text:"Event name — shows on the board",style:"margin-top:12px"}),
       h("input",{type:"text",value:getEvent(),
-        onchange:function(){ setEvent(this.value); renderEntry(); }}),
+        onchange:function(){ setEvent(this.value); retitle(); }}),
       h("label",{text:"TV key — type once, stays on this phone",style:"margin-top:12px"}),
       h("input",{type:"password",value:getKey(),placeholder:"the POST_KEY from the script",
         onchange:function(){ setKey(this.value); }}),
@@ -562,12 +578,15 @@
       h("label",{text:"TV board — seconds a page",style:"margin-top:12px"}),
       choiceButtons(Pts.SECS_CHOICES, getSecs(), function(v){ setSecs(v); renderEntry(); },
         function(v){ return String(v); }),
-      h("label",{text:"Pot money — whole dollars",style:"margin-top:12px"}),
+      /* "First place money", not "pot money". Kyle, 2026-09-13: "you should
+         say first place money not pot money. The total pot = sum" — the pot is
+         first place and Sunday money together. */
+      h("label",{text:"First place money — whole dollars",style:"margin-top:12px"}),
       h("input",{type:"number",inputmode:"numeric",min:"0",step:"1",value:(getPot()?String(getPot()):""),placeholder:"e.g. 2000",
-        onchange:function(){ setPot(this.value); renderEntry(); }}),
+        onchange:function(){ setPot(this.value); }}),
       h("label",{text:"Sunday money — whole dollars",style:"margin-top:12px"}),
       h("input",{type:"number",inputmode:"numeric",min:"0",step:"1",value:(getSun()?String(getSun()):""),placeholder:"e.g. 500",
-        onchange:function(){ setSun(this.value); renderEntry(); }}),
+        onchange:function(){ setSun(this.value); }}),
       /* This one sends as it is tapped. Kyle, 2026-09-13: "Seems redundant to
          have two buttons one for Final and One for Send to TV", then "Yes
          combine them". Forgetting to send at the end of a long day is likelier
@@ -719,8 +738,11 @@
         everFetched = true;
         if(j && j.format === "vtp-live-v1" && Array.isArray(j.points)){
           points = j.points;
-          if(j.event) setEvent(j.event);
-          if(j.title) setTitle(j.title);
+          /* Shown, never saved. Kyle's phone can open this board too, and
+             writing the TV's copy of the name into its storage put the old
+             name back over the one he had just typed. */
+          TV_NAMES = { title:j.title || "", event:j.event || "" };
+          retitle();
           PURSE = { pot:Pts.money(j.pot), sun:Pts.money(j.sun), final:j.final === true };
           lastOK = Date.now();
           /* the phone decides how the board rotates; an address overrides it */
