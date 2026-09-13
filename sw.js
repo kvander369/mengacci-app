@@ -8,7 +8,7 @@
  * the version shows at the bottom of Setup so "which version is my phone on"
  * has an answer.
  */
-const CACHE = 'mengacci-v9';
+const CACHE = 'mengacci-v10';
 
 const SHELL = [
   './',

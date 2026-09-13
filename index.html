@@ -286,7 +286,6 @@
   function sum(a, from, to){ var t=0; for(var i=from;i<to;i++) if(a[i]!=null && a[i]!==NONE) t+=a[i]; return t; }
   function filled(a, from, to){ var n=0; for(var i=from;i<to;i++) if(a[i]!=null) n++; return n; }
   function hasNone(a, from, to){ for(var i=from;i<to;i++) if(a[i]===NONE) return true; return false; }
-  function shuffle(a){ a=a.slice(); for(var i=a.length-1;i>0;i--){ var j=Math.floor(Math.random()*(i+1)); var t=a[i]; a[i]=a[j]; a[j]=t; } return a; }
   function now(){ var d=new Date(), h=d.getHours()%12||12, m=d.getMinutes(); return h+":"+(m<10?"0":"")+m; }
   function stampDate(){ var d=new Date(); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
   function toNull(a){ return a.map(function(v){ return v===NONE?null:v; }); }
@@ -773,10 +772,15 @@
         h("button",{class:"btn quiet sm",text:"Keep going",onclick:function(){ d.confirmCancel=false; render(); }})
       ])
     ]);
-    return h("div",{class:"row links"},[
+    /* Changing your mind about typing it again: back to the choices, keeping the
+       first entry and dropping only the second read. Kyle, 2026-09-13: "I decided
+       I didn't want that option afterall and can't go back". */
+    var back = d.pass===2 ? h("button",{class:"btn link",text:"Back to the check choices",onclick:function(){
+      d.pass=1; d.s2={}; d.hcp2={}; d.res={}; d.order=d.players.slice(); d.pi=0; d.nine=0; d.armed=null; d.ask=null; d.buf=""; d.step="verify"; render(); }}) : null;
+    return h("div",{},[ back, h("div",{class:"row links"},[
       h("button",{class:"btn link",text:"Park this card",onclick:parkCard}),
       h("button",{class:"btn link",text:d.recheck?"Stop checking":"Cancel this card",onclick:function(){ d.confirmCancel=true; render(); }})
-    ]);
+    ]) ]);
   }
   function parkCard(){ var d=S.draft; d.confirmCancel=false; d.parkedAt=now(); S.parked.push(d); S.draft=null; photoURL=null; S.view="home"; render(); }
 
@@ -959,8 +963,9 @@
       paint(top("New card","Verify"), kids, null);
       return;
     }
-    kids.push(h("button",{class:"btn gold",text:"I type it again · random order",onclick:function(){
-      d.order=shuffle(d.players); d.pi=0; d.pass=2; d.nine=0; d.armed=null; d.buf=""; d.step="hcp"; render(); }}));
+    /* In card order. Kyle, 2026-09-13: "don't make it in random order since there are only two people". */
+    kids.push(h("button",{class:"btn gold",text:"I type it again",onclick:function(){
+      d.order=d.players.slice(); d.pi=0; d.pass=2; d.nine=0; d.armed=null; d.buf=""; d.step="hcp"; render(); }}));
     /* ScannerBot reads the photo of the whole card and finds these two typed names among the four.
        Nothing is wired to him yet, so this parks the team as provisional, waiting. The money never waits on him. */
     kids.push(h("button",{class:"btn",text:"ScannerBot checks the photo",disabled:!d.photo,
