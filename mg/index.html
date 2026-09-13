@@ -46,7 +46,7 @@
 
   .cols{flex:1;min-height:0;padding:6px 44px 10px;display:grid;grid-template-columns:1fr;align-items:start;overflow:hidden}
   .col{min-width:0}
-  tr.blankrow td{border-bottom:0;background:transparent;padding:0}
+  tr.blankrow td{border-bottom:0;background:transparent}
 
   /* how long until the page turns */
   .prog{flex:none;height:8px;background:var(--green-soft);overflow:hidden}
@@ -84,6 +84,10 @@
   tr.lead td{background:var(--green-soft)}
   tr.lead td.pos,tr.lead td.tot{color:var(--green)}
   tr.sunlead td.sn{background:var(--gold-soft);font-weight:700}
+  /* the Sunday money team's name in brown too, so a six-way tie can be found
+     in the list and not only in the strip. Kyle, 2026-09-13, from a mockup:
+     "fix yes, brown yes". */
+  tr.sunlead td.team{color:#7A560F;background:var(--gold-soft)}
   td.dash{color:var(--line);font-weight:500}
 
   /* ---------- entry ---------- */
@@ -450,10 +454,17 @@
          type does not jump between pages. It carries the same nine cells,
          because one cell in a nine-column table shifts the columns, and it has
          its own class: "pad" is already the entry screen's scrolling area, so
-         this row was inheriting that background and showing as a grey block. */
+         this row was inheriting that background and showing as a grey block.
+         Its cells carry the real cells' classes and a non-breaking space, so
+         the row is exactly as tall as a team's. Kyle, 2026-09-13: "i think the
+         font size is changing from page 1 to page 2!!" — it was. Empty cells
+         with no padding made the filler rows zero pixels tall, so the short
+         last page looked shorter to fit() and got bigger type: 10% bigger at
+         13 a page, 27% at 9. */
+      var NB = " ";
       if(!r) return h("tr",{class:"blankrow"},[
-        h("td",{}),h("td",{}),h("td",{}),h("td",{}),h("td",{}),
-        h("td",{}),h("td",{}),h("td",{}),h("td",{})
+        h("td",{class:"pos",text:NB}),h("td",{class:"team",text:NB}),h("td",{class:"r",text:NB}),h("td",{class:"r",text:NB}),h("td",{class:"r",text:NB}),
+        h("td",{class:"r",text:NB}),h("td",{class:"r",text:NB}),h("td",{class:"tot",text:NB}),h("td",{class:"sn",text:NB})
       ]);
       var cells = [
         h("td",{class:"pos",text:String(r.rank)}),
