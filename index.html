@@ -64,6 +64,13 @@
   .btn.danger{background:var(--dead-soft);color:var(--dead);border:0}
   .btn:disabled{opacity:.4;cursor:default}
   .btn.sm{padding:9px 12px;font-size:16px;border-radius:9px}
+  /* Every tap shows. The screen is redrawn the instant a button is tapped, so a
+     pressed look alone never showed. Kyle, 2026-09-13: "no way to know when I
+     actually tapped it · no feedback". The redrawn button flashes gold. */
+  .btn:active,.pick:active,.choice:active,.tab:active,.xbtn:active,.cell:active{filter:brightness(.85)}
+  @keyframes tapflash{from{background:var(--gold);color:#1B1408;border-color:var(--gold);box-shadow:0 0 0 5px var(--gold-soft)}to{box-shadow:0 0 0 0 rgba(0,0,0,0)}}
+  .tapped{animation:tapflash .7s ease-out}
+  .sentnow{color:var(--green);font-weight:600}
   .btn.link{background:transparent;color:var(--muted);border:0;padding:6px;font-size:15px;font-weight:600;text-decoration:underline;text-underline-offset:3px}
   .row{display:flex;gap:10px}
   .row>.btn{flex:1}
@@ -297,9 +304,17 @@
       else el.setAttribute(k, attrs[k]);
     }
     (kids||[]).forEach(function(c){ if(c==null) return; el.appendChild(typeof c==="string"?document.createTextNode(c):c); });
+    /* tap feedback: remember what was tapped; the same button, redrawn a moment later, flashes */
+    if(tag==="button" && el.onclick){
+      var fn=el.onclick, label=String(el.textContent||"").trim();
+      el.onclick=function(e){ lastTap={label:label, at:Date.now()}; return fn.call(this,e); };
+      if(label && lastTap && lastTap.label===label && Date.now()-lastTap.at<800) el.className+=" tapped";
+    }
     return el;
   }
-  var app=document.getElementById("app"), lastKey=null;
+  var app=document.getElementById("app"), lastKey=null, lastTap=null;
+  /* iPhone Safari shows :active only when the page listens for touches */
+  if(document.addEventListener) document.addEventListener("touchstart", function(){}, {passive:true});
   function isTV(){ return S.view==="board" && (window.innerWidth||0)>=900; }
   function paint(topEl, bodyKids, padEl, cls){
     var key=S.view+"|"+(S.draft?S.draft.step+"|"+S.draft.pass+"|"+S.draft.pi+"|"+S.draft.nine:"");
@@ -433,6 +448,9 @@
         onclick:function(){ TV.on=!TV.on; tvSave(); tvState.next=0; tvState.error=null; render(); if(TV.on) tvPost(true); }}),
       h("button",{class:"btn quiet sm",id:"tvsend",text:"Send now",disabled:!TV.api||!TV.key,onclick:function(){ tvPost(true); }})
     ]));
+    /* right under the buttons, where the eye is after a tap (it used to sit below the rotation settings) */
+    var justSent=tvState.sentAt && Date.now()-tvState.sentAt<6000;
+    kids.push(h("div",{class:"note"+(justSent?" sentnow":""),text:"TV board · "+tvStatus()+(justSent?" ✓":"")}));
     /* The TV already holds a bigger round than this phone: a fresh phone must
        not wipe it by sending its empty one (checker, 2026-09-13). Kyle says. */
     if(tvState.hold) kids.push(h("div",{class:"check bad"},[
@@ -457,7 +475,6 @@
       return h("button",{class:"btn sm "+(TV.secs===n?"":"quiet"),text:String(n),
         onclick:function(){ TV.secs=n; tvSave(); render(); }});
     })));
-    kids.push(h("div",{class:"note",text:"TV board · "+tvStatus()}));
 
     /* The cutoff and the pots are money and are not changed once scores are in
        (RULES.md "The cutoff is input data"). So the lock refuses two pots with
@@ -523,11 +540,16 @@
       else {
         var firstInp=h("input",{class:"inp",value:"",placeholder:"First"}), lastInp=h("input",{class:"inp",value:"",placeholder:"Last"});
         [firstInp,lastInp].forEach(function(i){ i.setAttribute("type","text"); i.setAttribute("autocapitalize","words"); });
+        /* the keyboard hides Save on an iPhone, so its own key does the job: Next on First, Done on Last saves */
+        firstInp.setAttribute("enterkeyhint","next"); lastInp.setAttribute("enterkeyhint","done");
+        function saveMember(){
+          var f=(firstInp.value||"").trim(), l=(lastInp.value||"").trim(); if(!f&&!l) return;
+          S.people.push({id:S.nextPerson++,first:f,last:l}); S.adding=false; render(); }
+        firstInp.onkeydown=function(e){ if(e && e.key==="Enter"){ if(e.preventDefault) e.preventDefault(); try{ lastInp.focus(); }catch(x){} } };
+        lastInp.onkeydown=function(e){ if(e && e.key==="Enter"){ if(e.preventDefault) e.preventDefault(); saveMember(); } };
         kids.push(h("div",{class:"row"},[ firstInp, lastInp ]));
         kids.push(h("div",{class:"row"},[
-          h("button",{class:"btn sm",text:"Save",onclick:function(){
-            var f=(firstInp.value||"").trim(), l=(lastInp.value||"").trim(); if(!f&&!l) return;
-            S.people.push({id:S.nextPerson++,first:f,last:l}); S.adding=false; render(); }}),
+          h("button",{class:"btn sm",text:"Save",onclick:saveMember}),
           h("button",{class:"btn quiet sm",text:"Cancel",onclick:function(){ S.adding=false; render(); }})
         ]));
         setTimeout(function(){ try{ firstInp.focus(); }catch(e){} },0);
@@ -1152,7 +1174,7 @@
                       body:JSON.stringify({ key:TV.key, round:p }) })
         .then(function(res){
           tvState.busy=false;
-          if(res && res.ok){ tvState.sig=sig; tvState.sent=now(); tvState.error=null; tvState.tries=0; tvState.next=0; }
+          if(res && res.ok){ tvState.sig=sig; tvState.sent=now(); tvState.sentAt=Date.now(); tvState.error=null; tvState.tries=0; tvState.next=0; }
           else { tvFailed((res && res.error) || "refused"); }
           tvRepaint();
         });
