@@ -206,16 +206,36 @@
         r.left = r.total - r.per * r.skins.length;
         r.skins.forEach(function (s) { r.winners[s.holder] = (r.winners[s.holder] || 0) + r.per; });
       } else if (!r.rolledTo) {
+        /* nobody in the pot to refund (no verified player on that side of the
+           cutoff): the money has nowhere to go but the house, and it is said */
         var n = r.players.length;
         r.refundEach = n ? Math.floor(r.total / n) : 0;
-        r.left = n ? r.total - r.refundEach * n : 0;
+        r.left = r.total - r.refundEach * n;
       }
     });
     return res;
   }
 
+  /* The name on the board: the first name, and when another player in the field
+     shares it, as many letters of the last name as it takes to tell them apart,
+     with a full stop. Tommy Moran and Tommy McDonald: "Tommy Mo." and
+     "Tommy Mc." — Kyle, 2026-09-13: "if the names are that close we need another
+     letter to distinguish". Two players with the same whole name are shown in full.
+     Not money, but the phone and the TV must agree on it, so it lives here. */
+  function shortName(p, field) {
+    var same = (field || []).filter(function (q) { return q.id !== p.id && q.first === p.first; });
+    if (!same.length || !p.last) return p.first;
+    var mine = String(p.last).toLowerCase();
+    for (var n = 1; n <= mine.length; n++) {
+      var head = mine.slice(0, n);
+      var clear = same.every(function (q) { return String(q.last || "").toLowerCase().slice(0, n) !== head; });
+      if (clear) return p.first + " " + p.last.slice(0, n) + (n < p.last.length ? "." : "");
+    }
+    return p.first + " " + p.last;
+  }
+
   return {
-    PAR: PAR, SI: SI, PAR_TOTAL: PAR_TOTAL, placeMoney: placeMoney, skinsMoney: skinsMoney,
+    PAR: PAR, SI: SI, PAR_TOTAL: PAR_TOTAL, placeMoney: placeMoney, skinsMoney: skinsMoney, shortName: shortName,
     dots: dots, netScores: netScores, skins: skins, pots: pots, payout: payout,
     bestBall: bestBall, matchOfCards: matchOfCards, standings: standings, ties: ties,
     toPar: toPar, boardStatus: boardStatus, sum: sum

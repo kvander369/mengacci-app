@@ -141,7 +141,7 @@
 </head>
 <body>
 <div class="screen" id="screen"></div>
-<script src="../scoring.js?v=5666b3c090"></script>
+<script src="../scoring.js?v=fac2b72a49"></script>
 <script>
 (function(){
   "use strict";
@@ -216,10 +216,11 @@
     });
   }
   function player(id){ for (var i=0;i<ROSTER.length;i++) if (ROSTER[i].id===id) return ROSTER[i]; return null; }
+  /* the same rule as the phone, from the same file: enough of the last name to
+     tell two players apart ("Tommy Mo." and "Tommy Mc.") */
   function first(id){
     var p = player(id); if (!p) return "?";
-    var clash = ROSTER.some(function(o){ return o.id!==p.id && o.first===p.first; });
-    return p.first + (clash && p.last ? " "+p.last.charAt(0)+"." : "");
+    return Sc.shortName(p, ROSTER);
   }
 
   /* ---------- the board ---------- */

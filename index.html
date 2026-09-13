@@ -278,8 +278,10 @@
   }
   /* On open: if the database holds a newer copy than localStorage (the browser died
      before localStorage reached disk), carry on from it. Nothing is written to the
-     database until this check is done, so the stale copy cannot overwrite the good one. */
-  var userTouched=false;
+     database until this check is done, so the stale copy cannot overwrite the good one.
+     The newer copy wins even if a tap landed first: a tap in the first moments is
+     navigation, and the copy holds a whole card's worth of taps. It says so on screen. */
+  var recoveredNote=null;
   function recoverFromDB(){
     openDB().then(function(d){
       if(!d){ stateReady=true; return; }
@@ -288,9 +290,10 @@
         r.onsuccess=function(){
           var s=null; try{ s=r.result?JSON.parse(r.result):null; }catch(e){}
           stateReady=true;
-          if(s && s.cards && (s.savedAt||0) > loadedAt && !userTouched){
+          if(s && s.cards && (s.savedAt||0) > loadedAt){
             if(s.two===undefined) s.two=(s.cutoff!=null);
-            S=s; render();
+            S=s; loadedAt=s.savedAt; recoveredNote="Picked up where the app left off: the last saved taps were brought back after a restart.";
+            render();
           } else flushState();
         };
         r.onerror=function(){ stateReady=true; flushState(); };
@@ -309,8 +312,15 @@
       r.onupgradeneeded=function(){ var x=r.result;
         if(!x.objectStoreNames.contains("photos")) x.createObjectStore("photos");
         if(!x.objectStoreNames.contains("state")) x.createObjectStore("state"); };
-      r.onsuccess=function(){ db=r.result; res(db); };
+      r.onsuccess=function(){ db=r.result;
+        /* another copy of the app is upgrading the database: let it, and reopen next time */
+        db.onversionchange=function(){ try{ db.close(); }catch(e){} db=null; };
+        res(db); };
       r.onerror=function(){ res(null); };
+      /* an old copy of the app still holds the database open, so this open cannot
+         finish: give up after a moment rather than leave saving and photos stuck
+         with no sign (checker, 2026-09-13). localStorage still saves every tap. */
+      r.onblocked=function(){ setTimeout(function(){ if(!db) res(null); }, 3000); };
     });
   }
   function putPhoto(id, blob){ return openDB().then(function(d){ if(!d) return; return new Promise(function(res){ var t=d.transaction("photos","readwrite"); t.objectStore("photos").put(blob, String(id)); t.oncomplete=res; t.onerror=res; }); }); }
@@ -328,7 +338,10 @@
   function rebuildRoster(){ ROSTER=[]; S.teams.forEach(function(t,i){ var out=isWithdrawn(t); t.players.forEach(function(id){ var p=person(id); if(p) ROSTER.push({id:id,name:fullName(p),first:p.first,last:p.last,team:i+1,out:out}); }); }); }
   function player(id){ for(var i=0;i<ROSTER.length;i++) if(ROSTER[i].id===id) return ROSTER[i]; return null; }
   /* first name for the board; a last initial only when two players in the field share the first name */
-  function first(id){ var p=player(id); if(!p) return "?"; var clash=ROSTER.some(function(q){ return q.id!==p.id && q.first===p.first; }); return p.first+(clash&&p.last?" "+p.last.charAt(0)+".":""); }
+  /* first name for the board, plus as much of the last name as it takes to tell
+     two players apart: Tommy Moran and Tommy McDonald are "Tommy Mo." and
+     "Tommy Mc.", not both "Tommy M." (Kyle, 2026-09-13). Same rule in tv/index.html. */
+  function first(id){ var p=player(id); if(!p) return "?"; return Sc.shortName(p, ROSTER); }
   function onACard(id){ return S.cards.some(function(c){ return c.players.indexOf(id)>=0; }) || S.parked.some(function(d){ return d.players.indexOf(id)>=0; }); }
 
   function sum(a, from, to){ var t=0; for(var i=from;i<to;i++) if(a[i]!=null && a[i]!==NONE) t+=a[i]; return t; }
@@ -354,7 +367,7 @@
     /* tap feedback: remember what was tapped; the same button, redrawn a moment later, flashes */
     if(tag==="button" && el.onclick){
       var fn=el.onclick, label=String(el.textContent||"").trim();
-      el.onclick=function(e){ userTouched=true; lastTap={label:label, at:Date.now()}; return fn.call(this,e); };
+      el.onclick=function(e){ lastTap={label:label, at:Date.now()}; return fn.call(this,e); };
       if(label && lastTap && lastTap.label===label && Date.now()-lastTap.at<800) el.className+=" tapped";
     }
     return el;
@@ -426,7 +439,13 @@
     else {
       /* Keeping the teams is the usual case: a practice round, then the real one
          with the same field, without making the teams again. */
-      var newRound=function(keepTeams){ S.cards=[]; S.parked=[]; S.draft=null; if(!keepTeams) S.teams=[]; S.withdrawn=[]; S.pickA=null; S.locked=false; S.two=false; S.cutoff=null; S.setup={name:"Mengacci $$",date:"",net:"",gross:"",places:[""]}; S.confirmNew=false; S.backupNote=null; clearPhotos(); render(); };
+      var newRound=function(keepTeams){ S.cards=[]; S.parked=[]; S.draft=null; if(!keepTeams) S.teams=[]; S.withdrawn=[]; S.pickA=null; S.locked=false; S.two=false; S.cutoff=null; S.setup={name:"Mengacci $$",date:"",net:"",gross:"",places:[""]}; S.confirmNew=false; S.backupNote=null; S.restoreNote=null; clearPhotos();
+        /* Kyle started this round on purpose, so this phone is the one to believe:
+           no "the TV holds a bigger round" question (it would have fired Saturday
+           morning, right after New round · keep the teams — checker, 2026-09-13),
+           and a cleared phone gets one send so the TV clears too. */
+        tvState.hold=null; tvState.checked=true; tvState.sendEmpty=!keepTeams; tvState.sig="";
+        render(); };
       kids.push(h("div",{class:"check bad"},[ h("div",{class:"t",text:"Start a new round? Every score and card photo is cleared, and the pots and places are reset. The roster stays. Back up this round first if you want its files."}),
         h("button",{class:"btn danger sm",text:"New round · keep the teams",onclick:function(){ newRound(true); }}),
         h("button",{class:"btn danger sm",text:"New round · clear the teams too",onclick:function(){ newRound(false); }}),
@@ -497,7 +516,7 @@
        verified here. sync/README.md is where the address comes from. */
     kids.push(h("div",{class:"sect",text:"TV board"}));
     kids.push(field("Channel address", TV.api, function(v){ TV.api=v.trim(); tvSave(); }, false));
-    kids.push(field("Key", TV.key, function(v){ TV.key=v; tvSave(); var sb=document.getElementById("tvsend"); if(sb) sb.disabled=!TV.api||!TV.key; }, false, {type:"password"}));
+    kids.push(field("Key", TV.key, function(v){ TV.key=v; tvSave(); tvRepaint(); }, false, {type:"password"}));
     /* Kyle, 2026-09-13, twice: "there is no 'sent' anywhere!!" — a small grey line
        was not feedback. The button itself now says Sending… then Sent ✓, and the
        TV's state sits right under it in the same big coloured box as the lock. */
@@ -506,8 +525,8 @@
        thing!!! ... ive had it with that. fix it". A phone with the key sends by
        itself; an empty phone never sends, and a phone with less than the TV asks
        first, so the switch guarded nothing the app does not already guard. */
-    kids.push(h("button",{class:"btn sm "+(justSent?"":"quiet"),id:"tvsend",text:tvState.busy?"Sending…":(justSent?"Sent ✓":"Send now"),disabled:!TV.api||!TV.key,onclick:function(){ tvPost(true); }}));
-    kids.push(h("div",{class:"check "+((tvState.error||tvState.hold)?"bad":(tvState.sent?"good":"warn"))},[ h("div",{class:"t",text:"TV board · "+tvStatus()}) ]));
+    kids.push(h("button",{class:"btn sm "+(justSent?"":"quiet"),id:"tvsend",text:tvSendLabel(),disabled:!TV.api||!TV.key,onclick:function(){ tvPost(true); }}));
+    kids.push(h("div",{class:"check "+tvBoxClass(),id:"tvbox"},[ h("div",{class:"t",text:"TV board · "+tvStatus()}) ]));
     /* The TV already holds a bigger round than this phone: a fresh phone must
        not wipe it by sending its empty one (checker, 2026-09-13). Kyle says. */
     if(tvState.hold) kids.push(h("div",{class:"check bad"},[
@@ -537,7 +556,7 @@
        (RULES.md "The cutoff is input data"). So the lock refuses two pots with
        no cutoff, and Unlock is refused once any team's scores are saved or
        parked. To change them after that, start a new round. */
-    var scoresIn=S.cards.length+S.parked.length+(S.draft?1:0);
+    var scoresIn=S.cards.length+S.parked.length;   /* Setup is never drawn with a card open, so a draft needs no term here */
     if(locked && scoresIn){
       kids.push(h("button",{class:"btn quiet",style:"margin-top:8px",text:"Unlock",disabled:true}));
       kids.push(h("div",{class:"note",text:"Scores are in, so the pots and the cutoff stay as they are."}));
@@ -552,6 +571,7 @@
         h("button",{class:"btn quiet sm",text:"Leave it locked",onclick:function(){ S.confirmUnlock=false; render(); }}) ]));
     }
 
+    if(recoveredNote) kids.push(h("div",{class:"check good"},[ h("div",{class:"t",text:recoveredNote}) ]));
     kids.push(h("div",{class:"stamp",id:"stamp",text:"version …"}));
     paint(top(S.setup.name+" · CCW","Setup", null), kids, null);
     showVersion();
@@ -629,7 +649,8 @@
     kids.push(h("div",{class:"row"},[
       h("span",{class:"note",text:(cutoffNow()==null?"One skins pot, net":"Two pots · gross hcp "+cutoffNow()+" and under")+(S.locked?" · locked":" · not locked")})
     ]));
-    if(TV.on || TV.api) kids.push(h("div",{class:"row"},[ h("span",{class:"note",text:"TV board · "+tvStatus()}) ]));
+    if(TV.api) kids.push(h("div",{class:"row"},[ h("span",{class:"note",id:"tvline",text:"TV board · "+tvStatus()}) ]));
+    if(recoveredNote) kids.push(h("div",{class:"check good"},[ h("div",{class:"t",text:recoveredNote}) ]));
     kids.push(h("button",{class:"btn link",style:"text-align:left;padding:0",text:"How ties were decided",onclick:function(){ S.view="ties"; render(); }}));
     S.parked.forEach(function(p, idx){
       var L=draftLabel(p);
@@ -694,7 +715,9 @@
     if(!amounts.some(function(c){ return c>0; })) out.push(note("No place amounts typed on Setup."));
     else {
       var pbox=h("div",{class:"list"});
-      pm.rows.filter(function(r){ return r.cents>0; }).forEach(function(r){
+      /* every team that took a paid place is listed, even at $0 (a place typed as
+         $0, or a split that floors to nothing), so the list is never shorter than the truth */
+      pm.rows.filter(function(r){ return r.place<=amounts.length; }).forEach(function(r){
         pbox.appendChild(moneyRow(ordinal(r.place)+(r.tied?" (tie)":"")+" · "+r.team.players.map(first).join(" & "), r.tied?"identical cards · split":"", dollars(r.cents)));
       });
       out.push(pbox);
@@ -710,10 +733,12 @@
       : [{name:"Gross pot",cents:cents(S.setup.gross),rows:Sc.skins(pots.gross,true),players:ids(pots.gross)},
          {name:"Net pot",cents:cents(S.setup.net),rows:Sc.skins(pots.net,false),players:ids(pots.net)}];
     Sc.skinsMoney(spec).forEach(function(p){
-      if(!p.cents && !p.from){ out.push(note(p.name+": no amount typed on Setup.")); return; }
       if(p.rolledTo){ out.push(note(p.name+" "+dollars(p.cents)+" · no skins won · all of it goes to the "+p.rolledTo.toLowerCase())); return; }
+      if(!p.cents && !p.from){ out.push(note(p.name+": no amount typed on Setup.")); return; }
       if(!p.skins.length){
-        out.push(note(p.name+" "+dollars(p.total)+" · no skins won · refunded: "+(p.players.length?dollars(p.refundEach)+" to each of its "+p.players.length+" players"+(p.left?" · "+p.left+"¢ to the house":""):"to its players once their scores are in")));
+        var who = p.players.length ? dollars(p.refundEach)+" to each of its "+p.players.length+" players"+(p.left?" · "+p.left+"¢ to the house":"")
+                : (st.status==="final" ? "nobody in this pot, so "+dollars(p.left)+" to the house" : "to its players once their scores are in");
+        out.push(note(p.name+" "+dollars(p.total)+" · no skins won · refunded: "+who));
         return;
       }
       out.push(note(p.name+" "+dollars(p.total)+(p.from?" (with the unwon "+p.from.toLowerCase()+")":"")+" · "+p.skins.length+" skin"+(p.skins.length>1?"s":"")+" · "+dollars(p.per)+" a skin"+(p.left?" · "+p.left+"¢ to the house":"")));
@@ -1211,24 +1236,28 @@
 
   function tvPost(force){
     if(!TV.api || !TV.key || tvState.busy) return;
-    if(!S.teams.length) return;                                      /* an empty phone never sends: it would wipe the TV */
-    if(tvState.hold) return;                                         /* waiting on Kyle: the TV holds a bigger round */
+    if(!S.teams.length && !tvState.sendEmpty) return;              /* an empty phone never sends: it would wipe the TV */
     var p=tvPayload(), sig=tvSig(p);
-    if(!force && sig===tvState.sig && !tvState.error) return;      /* nothing new to say */
+    if(!force && sig===tvState.sig && !tvState.error && !tvState.hold) return;   /* nothing new to say */
     if(!force && Date.now() < tvState.next) return;                /* backing off after a failure */
     tvState.busy=true; tvState.error=null; tvRepaint();
     /* Before this phone's first send, look at what the TV holds. If it has more
        players in than this phone, this is probably a phone that lost its round,
-       and sending would put an emptier board over the real one. Ask Kyle. */
+       and sending would put an emptier board over the real one. Ask Kyle — and
+       keep looking: the question goes away by itself once this phone has caught
+       up, instead of holding the TV all day (checker, 2026-09-13). */
     var look = tvState.checked ? Promise.resolve(null)
       : tvFetch(TV.api+(TV.api.indexOf("?")>=0?"&":"?")+"t="+Date.now(), {method:"GET"});
     look.then(function(L){
       if(!tvState.checked){
         var theirs=(L && L.by) ? Object.keys(L.by).length : 0, mine=Object.keys(p.by).length;
         if(L && (L.teams||[]).length && theirs>mine){
-          tvState.busy=false; tvState.hold={teams:L.teams.length, verified:theirs, mine:mine}; tvRepaint(); return null;
+          var had=!!tvState.hold;
+          tvState.busy=false; tvState.hold={teams:L.teams.length, verified:theirs, mine:mine};
+          if(had) tvRepaint(); else render(); return null;   /* the question is new: draw it */
         }
         tvState.checked=true;
+        if(tvState.hold){ tvState.hold=null; render(); }
       }
       /* text/plain on purpose: application/json makes the browser ask Apps Script
          for a CORS preflight it does not answer, and the post never leaves. */
@@ -1236,7 +1265,7 @@
                       body:JSON.stringify({ key:TV.key, round:p }) })
         .then(function(res){
           tvState.busy=false;
-          if(res && res.ok){ setTimeout(tvRepaint, 8200); tvState.sig=sig; tvState.sent=now(); tvState.sentAt=Date.now(); tvState.error=null; tvState.tries=0; tvState.next=0; }
+          if(res && res.ok){ setTimeout(tvRepaint, 8200); tvState.sig=sig; tvState.sent=now(); tvState.sentAt=Date.now(); tvState.error=null; tvState.tries=0; tvState.next=0; tvState.sendEmpty=false; }
           else { tvFailed((res && res.error) || "refused"); }
           tvRepaint();
         });
@@ -1246,14 +1275,22 @@
     tvState.error=msg; tvState.tries++;
     tvState.next = Date.now() + Math.min(60000, 5000 * Math.pow(2, Math.min(tvState.tries,4)));
   }
-  /* only repaint where the status line actually shows, so a post never
-     interrupts entry or moves anything under a thumb */
-  function tvRepaint(){ if(!S.draft && (S.view==="setup" || S.view==="home")) render(); }
+  /* Update the TV's status where it shows, in place: a full redraw closed the
+     keyboard under Kyle mid-word on Setup (checker, 2026-09-13). */
+  function tvSendLabel(){ var justSent=tvState.sentAt && Date.now()-tvState.sentAt<8000; return tvState.busy?"Sending…":(justSent?"Sent ✓":"Send now"); }
+  function tvBoxClass(){ return (tvState.error||tvState.hold)?"bad":(tvState.sent?"good":"warn"); }
+  function tvRepaint(){
+    if(S.draft) return;
+    var justSent=tvState.sentAt && Date.now()-tvState.sentAt<8000;
+    var b=document.getElementById("tvsend"); if(b){ b.textContent=tvSendLabel(); b.disabled=!TV.api||!TV.key; b.className="btn sm"+(justSent?"":" quiet"); }
+    var x=document.getElementById("tvbox"); if(x){ x.className="check "+tvBoxClass(); x.textContent=""; x.appendChild(h("div",{class:"t",text:"TV board · "+tvStatus()})); }
+    var l=document.getElementById("tvline"); if(l) l.textContent="TV board · "+tvStatus();
+  }
   function tvStatus(){
     if(!TV.api) return "not connected";
     if(!TV.key) return "no key yet";
     if(tvState.hold) return "waiting: the TV holds a bigger round";
-    if(!S.teams.length) return "nothing to send yet";
+    if(!S.teams.length && !tvState.sendEmpty) return "nothing to send yet";
     if(tvState.busy) return "sending…";
     if(tvState.error) return tvState.error + " · retrying";
     return tvState.sent ? "sent at " + tvState.sent : "waiting to send";
@@ -1282,14 +1319,15 @@
      the offline copy's version, so Kyle's phone said v10 while the v9 screen was
      still running and still said "random order" (2026-09-13). test/walk.js
      fails if this and CACHE in sw.js ever differ. */
-  var APP_VERSION = "mengacci-v12";
+  var APP_VERSION = "mengacci-v13";
   var versionText="not installed", swVersion=null;
   function showVersion(){
     var el=document.getElementById("stamp"); if(!el) return;
     var mine=APP_VERSION.replace(/^mengacci-/,"");
     var ready=swVersion && swVersion!==APP_VERSION ? swVersion.replace(/^mengacci-/,"") : null;
-    el.textContent = "version "+mine + (ready ? " · "+ready+" is ready: close the app and open it again" : "");
-    if(ready) el.style.color="var(--dead)";
+    var trouble = (!swVersion && (versionText==="install failed" || versionText==="not installed")) ? " · offline copy: "+versionText : "";
+    el.textContent = "version "+mine + (ready ? " · "+ready+" is ready: close the app and open it again" : trouble);
+    if(ready || trouble) el.style.color="var(--dead)";
   }
   if(typeof navigator!=="undefined" && "serviceWorker" in navigator){
     navigator.serviceWorker.addEventListener("message", function(e){ if(e.data && e.data.version){ swVersion=String(e.data.version); versionText=swVersion.replace(/^mengacci-/,""); showVersion(); } });
