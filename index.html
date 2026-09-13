@@ -226,7 +226,18 @@
   }
   function load(){
     try{ var raw=localStorage.getItem(LS); if(raw){ var s=JSON.parse(raw); if(s && s.cards){ if(s.two===undefined) s.two=(s.cutoff!=null); return s; } } }catch(e){}
-    return fresh();
+    var f=fresh();
+    /* The first time the one app opens on a phone, it brings the club roster
+       over from the retired apps — names only, never a round, cards or money —
+       so members typed in before 2026-09-13 are not typed again. */
+    try{ ["mengacci_try_v1","mengacci_v1"].forEach(function(k){
+      var o=JSON.parse(localStorage.getItem(k)||"null");
+      if(o && o.people && o.people.length>f.people.length){
+        f.people=o.people.map(function(p){ return {id:p.id, first:p.first||"", last:p.last||""}; });
+        f.nextPerson=1+f.people.reduce(function(m,p){ return Math.max(m, Number(p.id)||0); },0);
+      }
+    }); }catch(e){}
+    return f;
   }
   /* Two pots is its own switch, so choosing it never types a cutoff for Kyle
      (it used to put in 12), and a blank box is blank, not the old number.
