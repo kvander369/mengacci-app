@@ -227,6 +227,7 @@
      (mengacci_try_v1) never load into it. */
   var LS = "mengacci_v2";
   var S = load();
+  var loadedAt = S.savedAt || 0;   /* when the copy we opened on was saved; see recoverFromDB() */
   function fresh(){
     return { view:"setup", people:[], teams:[], withdrawn:[], setup:{name:"Mengacci $$",date:"",net:"",gross:"",places:[""]}, two:false, cutoff:null, locked:false,
              cards:[], parked:[], draft:null, nextId:1, nextTeam:1, nextPerson:1 };
@@ -251,7 +252,52 @@
      The rules see a cutoff only when two pots are on and one is typed; the
      lock refuses two pots with no cutoff, so entry never sees that half-state. */
   function cutoffNow(){ return S.two && S.cutoff!=null ? S.cutoff : null; }
-  function save(){ try{ localStorage.setItem(LS, JSON.stringify(S)); }catch(e){} }
+  /* Every save goes to two places. localStorage alone lost a whole card in
+     progress when the browser was killed: measured 2026-09-13 in Chrome, the card
+     was gone even 15 seconds after the last tap, because the browser writes
+     localStorage to disk lazily. The same state also goes to IndexedDB, one
+     transaction per save, which reaches disk as it commits. On open the app takes
+     whichever copy is newer. Kyle: "do it now to make it save more safely!" */
+  function save(){
+    S.savedAt = Date.now();
+    var json = null;
+    try{ json = JSON.stringify(S); localStorage.setItem(LS, json); }catch(e){}
+    if(json) putState(json);
+  }
+  var statePending=null, stateBusy=false, stateReady=false;
+  function putState(json){ statePending=json; if(stateBusy || !stateReady) return; flushState(); }
+  function flushState(){
+    if(statePending==null) return;
+    var j=statePending; statePending=null; stateBusy=true;
+    openDB().then(function(d){
+      if(!d){ stateBusy=false; return; }
+      var t; try{ t=d.transaction("state","readwrite",{durability:"strict"}); }catch(e){ try{ t=d.transaction("state","readwrite"); }catch(e2){ stateBusy=false; return; } }
+      t.oncomplete=t.onerror=t.onabort=function(){ stateBusy=false; flushState(); };
+      try{ t.objectStore("state").put(j, "round"); }catch(e){ stateBusy=false; }
+    });
+  }
+  /* On open: if the database holds a newer copy than localStorage (the browser died
+     before localStorage reached disk), carry on from it. Nothing is written to the
+     database until this check is done, so the stale copy cannot overwrite the good one. */
+  var userTouched=false;
+  function recoverFromDB(){
+    openDB().then(function(d){
+      if(!d){ stateReady=true; return; }
+      try{
+        var r=d.transaction("state").objectStore("state").get("round");
+        r.onsuccess=function(){
+          var s=null; try{ s=r.result?JSON.parse(r.result):null; }catch(e){}
+          stateReady=true;
+          if(s && s.cards && (s.savedAt||0) > loadedAt && !userTouched){
+            if(s.two===undefined) s.two=(s.cutoff!=null);
+            S=s; render();
+          } else flushState();
+        };
+        r.onerror=function(){ stateReady=true; flushState(); };
+      }catch(e){ stateReady=true; flushState(); }
+    });
+  }
+  recoverFromDB();
 
   /* ---------- photos: kept in IndexedDB, keyed by card id ---------- */
   var db=null;
@@ -259,8 +305,10 @@
     return new Promise(function(res){
       if(db) return res(db);
       if(!window.indexedDB) return res(null);
-      var r=indexedDB.open("mengacci_v2",1);
-      r.onupgradeneeded=function(){ r.result.createObjectStore("photos"); };
+      var r=indexedDB.open("mengacci_v2",2);
+      r.onupgradeneeded=function(){ var x=r.result;
+        if(!x.objectStoreNames.contains("photos")) x.createObjectStore("photos");
+        if(!x.objectStoreNames.contains("state")) x.createObjectStore("state"); };
       r.onsuccess=function(){ db=r.result; res(db); };
       r.onerror=function(){ res(null); };
     });
@@ -306,7 +354,7 @@
     /* tap feedback: remember what was tapped; the same button, redrawn a moment later, flashes */
     if(tag==="button" && el.onclick){
       var fn=el.onclick, label=String(el.textContent||"").trim();
-      el.onclick=function(e){ lastTap={label:label, at:Date.now()}; return fn.call(this,e); };
+      el.onclick=function(e){ userTouched=true; lastTap={label:label, at:Date.now()}; return fn.call(this,e); };
       if(label && lastTap && lastTap.label===label && Date.now()-lastTap.at<800) el.className+=" tapped";
     }
     return el;
@@ -1234,7 +1282,7 @@
      the offline copy's version, so Kyle's phone said v10 while the v9 screen was
      still running and still said "random order" (2026-09-13). test/walk.js
      fails if this and CACHE in sw.js ever differ. */
-  var APP_VERSION = "mengacci-v11";
+  var APP_VERSION = "mengacci-v12";
   var versionText="not installed", swVersion=null;
   function showVersion(){
     var el=document.getElementById("stamp"); if(!el) return;
