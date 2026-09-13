@@ -453,11 +453,11 @@
        was not feedback. The button itself now says Sending… then Sent ✓, and the
        TV's state sits right under it in the same big coloured box as the lock. */
     var justSent=tvState.sentAt && Date.now()-tvState.sentAt<8000;
-    kids.push(h("div",{class:"row"},[
-      h("button",{class:"btn sm "+(TV.on?"":"quiet"),text:TV.on?"Sending to the TV":"Not sending",
-        onclick:function(){ TV.on=!TV.on; tvSave(); tvState.next=0; tvState.error=null; render(); if(TV.on) tvPost(true); }}),
-      h("button",{class:"btn sm "+(justSent?"":"quiet"),id:"tvsend",text:tvState.busy?"Sending…":(justSent?"Sent ✓":"Send now"),disabled:!TV.api||!TV.key,onclick:function(){ tvPost(true); }})
-    ]));
+    /* No on/off switch. Kyle, 2026-09-13: "STILL MISSING THAT SENDING TO THE TV
+       thing!!! ... ive had it with that. fix it". A phone with the key sends by
+       itself; an empty phone never sends, and a phone with less than the TV asks
+       first, so the switch guarded nothing the app does not already guard. */
+    kids.push(h("button",{class:"btn sm "+(justSent?"":"quiet"),id:"tvsend",text:tvState.busy?"Sending…":(justSent?"Sent ✓":"Send now"),disabled:!TV.api||!TV.key,onclick:function(){ tvPost(true); }}));
     kids.push(h("div",{class:"check "+((tvState.error||tvState.hold)?"bad":(tvState.sent?"good":"warn"))},[ h("div",{class:"t",text:"TV board · "+tvStatus()}) ]));
     /* The TV already holds a bigger round than this phone: a fresh phone must
        not wipe it by sending its empty one (checker, 2026-09-13). Kyle says. */
@@ -1155,7 +1155,6 @@
   function tvWhy(e){ return e && e.http ? e.message : e && e.name==="AbortError" ? "no answer" : "no signal"; }
 
   function tvPost(force){
-    if(!TV.on && !force) return;
     if(!TV.api || !TV.key || tvState.busy) return;
     if(!S.teams.length) return;                                      /* an empty phone never sends: it would wipe the TV */
     if(tvState.hold) return;                                         /* waiting on Kyle: the TV holds a bigger round */
@@ -1198,7 +1197,6 @@
   function tvStatus(){
     if(!TV.api) return "not connected";
     if(!TV.key) return "no key yet";
-    if(!TV.on) return "off";
     if(tvState.hold) return "waiting: the TV holds a bigger round";
     if(!S.teams.length) return "nothing to send yet";
     if(tvState.busy) return "sending…";
