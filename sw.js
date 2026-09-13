@@ -8,7 +8,7 @@
  * the version shows at the bottom of Setup so "which version is my phone on"
  * has an answer.
  */
-const CACHE = 'mengacci-v3';
+const CACHE = 'mengacci-v4';
 
 const SHELL = [
   './',
@@ -20,13 +20,20 @@ const SHELL = [
 ];
 
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));
+  /* cache:'reload' goes past the browser's own HTTP cache. GitHub Pages says
+     max-age=600, so without it a phone that loaded the app in the last ten
+     minutes filled the NEW cache with the OLD page (checker, 2026-09-13). */
+  e.waitUntil(caches.open(CACHE)
+    .then(c => c.addAll(SHELL.map(u => new Request(u, { cache: 'reload' }))))
+    .then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', e => {
   e.waitUntil(
     caches.keys()
-      .then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k))))
+      /* only Mengacci's own old copies: Mixed Up Golf lives on the same
+         kvander369.github.io site and shares this cache store */
+      .then(keys => Promise.all(keys.filter(k => k !== CACHE && k.indexOf('mengacci-') === 0).map(k => caches.delete(k))))
       .then(() => self.clients.claim())
   );
 });
@@ -49,6 +56,9 @@ self.addEventListener('fetch', e => {
   if (url.hostname.endsWith('script.google.com') || url.hostname.endsWith('script.googleusercontent.com')) return;
   if (url.pathname.indexOf('/tv/') >= 0) return;
   if (url.pathname.indexOf('/mg/') >= 0) return;   /* the points pot board: same reason */
+  /* and anything a board page asks for — ../scoring.js is outside /tv/, so a
+     TV that ever opened the app kept an old rules file under a new board */
+  if (req.referrer) { try { const rp = new URL(req.referrer).pathname; if (rp.indexOf('/tv/') >= 0 || rp.indexOf('/mg/') >= 0) return; } catch (x) {} }
 
   const isFont = url.hostname === 'fonts.googleapis.com' || url.hostname === 'fonts.gstatic.com';
   e.respondWith(

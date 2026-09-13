@@ -1,7 +1,7 @@
 {
   "name": "Mengacci $$",
   "short_name": "Mengacci",
-  "description": "Scorecard entry and live board for the Mengacci $$ at Country Club of Waterbury. Works with no signal.",
+  "description": "Team score entry and live board for the Mengacci $$ at Country Club of Waterbury. Works with no signal.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

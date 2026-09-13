@@ -202,6 +202,7 @@
     .phone.tv .secthead .pill{font-size:18px}
   }
   @media (prefers-reduced-motion:no-preference){ .key:active{transform:scale(.97)} }
+  .trial{background:#8a1c1c;color:#fff;font-weight:700;letter-spacing:.06em;text-align:center;padding:6px 8px;font-size:13px}
 </style>
 </head>
 <body>
@@ -214,16 +215,24 @@
   var NONE = -1;   /* a hole with no score, in a draft: entered, but not a number. RULES.md "A player who cannot finish" */
 
   /* ---------- state: one object, saved on every change ---------- */
-  var LS = "mengacci_v1";
+  /* One app since 2026-09-13 (Kyle: "replace the old app ... No looking back").
+     New names, so the retired app's test round (mengacci_v1) and the trial's
+     (mengacci_try_v1) never load into it. */
+  var LS = "mengacci_v2";
   var S = load();
   function fresh(){
-    return { view:"setup", people:[], teams:[], withdrawn:[], setup:{name:"Mengacci $$",date:"",net:"",gross:""}, cutoff:null, locked:false,
+    return { view:"setup", people:[], teams:[], withdrawn:[], setup:{name:"Mengacci $$",date:"",net:"",gross:"",places:[""]}, two:false, cutoff:null, locked:false,
              cards:[], parked:[], draft:null, nextId:1, nextTeam:1, nextPerson:1 };
   }
   function load(){
-    try{ var raw=localStorage.getItem(LS); if(raw){ var s=JSON.parse(raw); if(s && s.cards) return s; } }catch(e){}
+    try{ var raw=localStorage.getItem(LS); if(raw){ var s=JSON.parse(raw); if(s && s.cards){ if(s.two===undefined) s.two=(s.cutoff!=null); return s; } } }catch(e){}
     return fresh();
   }
+  /* Two pots is its own switch, so choosing it never types a cutoff for Kyle
+     (it used to put in 12), and a blank box is blank, not the old number.
+     The rules see a cutoff only when two pots are on and one is typed; the
+     lock refuses two pots with no cutoff, so entry never sees that half-state. */
+  function cutoffNow(){ return S.two && S.cutoff!=null ? S.cutoff : null; }
   function save(){ try{ localStorage.setItem(LS, JSON.stringify(S)); }catch(e){} }
 
   /* ---------- photos: kept in IndexedDB, keyed by card id ---------- */
@@ -232,7 +241,7 @@
     return new Promise(function(res){
       if(db) return res(db);
       if(!window.indexedDB) return res(null);
-      var r=indexedDB.open("mengacci",1);
+      var r=indexedDB.open("mengacci_v2",1);
       r.onupgradeneeded=function(){ r.result.createObjectStore("photos"); };
       r.onsuccess=function(){ db=r.result; res(db); };
       r.onerror=function(){ res(null); };
@@ -287,7 +296,7 @@
     app.innerHTML=""; app.className="phone"+(cls?" "+cls:"");
     app.appendChild(topEl);
     if(!S.draft && ["setup","roster","home","board","ties"].indexOf(S.view)>=0 && !isTV()){
-      var tabs=h("div",{class:"tabs"}); [["setup","Setup"],["roster","Roster"],["home","Cards"],["board","Board"]].forEach(function(t){
+      var tabs=h("div",{class:"tabs"}); [["setup","Setup"],["roster","Roster"],["home","Teams"],["board","Board"]].forEach(function(t){
         tabs.appendChild(h("button",{class:"tab"+(S.view===t[0]?" on":""),text:t[1],onclick:function(){ S.view=t[0]; render(); }})); }); app.appendChild(tabs); }
     var sc=h("div",{class:"scroll"},[h("div",{class:"stack"},bodyKids)]);
     app.appendChild(sc);
@@ -335,15 +344,31 @@
     return h("label",{class:"fld"},[ h("span",{class:"lbl",text:label}), inp ]);
   }
   function renderSetup(){
-    var locked=!!S.locked, kids=[], two=S.cutoff!=null;
+    var locked=!!S.locked, kids=[], two=!!S.two;
     kids.push(h("div",{class:locked?"check good":"check warn"},[ h("div",{class:"t",text:locked?"Locked at first tee":"Not locked yet"}) ]));
 
     /* Start a new round: the fresh start. Asks first. Clears the round, keeps the roster. There is no past (DESIGN.md). */
     kids.push(h("div",{class:"sect",text:"New round"}));
     if(!S.confirmNew) kids.push(h("button",{class:"btn quiet sm",text:"Start a new round",onclick:function(){ S.confirmNew=true; render(); }}));
-    else kids.push(h("div",{class:"check bad"},[ h("div",{class:"t",text:"Start a new round? The board, every card and the teams are cleared. The roster stays. Back up this round first if you want its files."}),
-      h("div",{class:"row"},[ h("button",{class:"btn danger sm",text:"Yes, new round",onclick:function(){ S.cards=[]; S.parked=[]; S.draft=null; S.teams=[]; S.withdrawn=[]; S.pickA=null; S.locked=false; S.cutoff=null; S.setup={name:"Mengacci $$",date:"",net:"",gross:""}; S.confirmNew=false; render(); }}),
+    else kids.push(h("div",{class:"check bad"},[ h("div",{class:"t",text:"Start a new round? The board, every card, the card photos and the teams are cleared. The roster stays. Back up this round first if you want its files."}),
+      h("div",{class:"row"},[ h("button",{class:"btn danger sm",text:"Yes, new round",onclick:function(){ S.cards=[]; S.parked=[]; S.draft=null; S.teams=[]; S.withdrawn=[]; S.pickA=null; S.locked=false; S.two=false; S.cutoff=null; S.setup={name:"Mengacci $$",date:"",net:"",gross:"",places:[""]}; S.confirmNew=false; S.backupNote=null; clearPhotos(); render(); }}),
         h("button",{class:"btn quiet sm",text:"Keep this round",onclick:function(){ S.confirmNew=false; render(); }}) ]) ]));
+
+    /* A phone that lost its round (a crash, or the app added to the home screen
+       again, which opens an empty copy) can take it back. Offered only on a
+       phone with no teams, so it can never write over a round in progress. */
+    if(!S.teams.length && !S.cards.length){
+      kids.push(h("div",{class:"sect",text:"Bring a round back"}));
+      kids.push(h("div",{class:"row"},[
+        h("button",{class:"btn quiet sm",text:"Get it from the TV",disabled:!TV.api,onclick:restoreFromTV}),
+        h("button",{class:"btn quiet sm",text:"Load a backup file",onclick:function(){ restoreInput.click(); }})
+      ]));
+      var restoreInput=h("input",{type:"file",accept:"application/json,.json"});
+      restoreInput.onchange=function(){ var f=restoreInput.files&&restoreInput.files[0]; if(!f) return;
+        var rd=new FileReader(); rd.onload=function(){ try{ restoreRound(JSON.parse(rd.result),"backup file"); }catch(e){ S.restoreNote="That file is not a Mengacci backup."; render(); } }; rd.readAsText(f); };
+      kids.push(restoreInput);
+      if(S.restoreNote) kids.push(h("div",{class:"note",text:S.restoreNote}));
+    }
 
     /* teams made so far; made on the Roster tab; × dissolves before the lock, withdraws after it */
     kids.push(h("div",{class:"sect",text:"Teams · "+S.teams.length}));
@@ -362,14 +387,25 @@
 
     kids.push(h("div",{class:"sect",text:"Skins pots"}));
     kids.push(h("div",{class:"row"},[
-      h("button",{class:"btn sm "+(two?"quiet":""),text:"One pot · net",disabled:locked,onclick:function(){ S.cutoff=null; render(); }}),
-      h("button",{class:"btn sm "+(two?"":"quiet"),text:"Two pots · gross and net",disabled:locked,onclick:function(){ if(S.cutoff==null) S.cutoff=12; render(); }})
+      h("button",{class:"btn sm "+(two?"quiet":""),text:"One pot · net",disabled:locked,onclick:function(){ S.two=false; render(); }}),
+      h("button",{class:"btn sm "+(two?"":"quiet"),text:"Two pots · gross and net",disabled:locked,onclick:function(){ S.two=true; render(); }})
     ]));
-    if(two) kids.push(field("Gross pot is handicap … and under", S.cutoff, function(v){ var n=parseInt(v,10); if(!isNaN(n)) S.cutoff=n; }, locked, {type:"number"}));
+    if(two) kids.push(field("Gross pot is handicap … and under", S.cutoff, function(v){ var n=parseInt(v,10); S.cutoff=(String(v).trim()===""||isNaN(n)||n<0)?null:n; }, locked, {type:"number"}));
     kids.push(h("div",{class:"row"},[
       field("Net pot $", S.setup.net, function(v){S.setup.net=v;}, locked, {type:"number"}),
       two?field("Gross pot $", S.setup.gross, function(v){S.setup.gross=v;}, locked, {type:"number"}):null
     ]));
+
+    /* Mengacci pays more than one place (Kyle, 2026-09-13). Money, so locked like the pots. */
+    var places=S.setup.places||(S.setup.places=[""]);
+    kids.push(h("div",{class:"sect",text:"Tournament places paid · "+places.length}));
+    kids.push(h("div",{class:"row"},[
+      h("button",{class:"btn quiet sm",text:"One fewer",disabled:locked||places.length<=1,onclick:function(){ places.pop(); render(); }}),
+      h("button",{class:"btn quiet sm",text:"One more",disabled:locked||places.length>=10,onclick:function(){ places.push(""); render(); }})
+    ]));
+    for(var pk=0;pk<places.length;pk+=2) kids.push(h("div",{class:"row"},[pk,pk+1].map(function(k){
+      return k<places.length ? field(ordinal(k+1)+" place $", places[k], function(v){ places[k]=v; }, locked, {type:"number"}) : h("div",{class:"fld"});
+    })));
 
     kids.push(h("div",{class:"sect",text:"Event"}));
     kids.push(field("Name", S.setup.name, function(v){S.setup.name=v;}, false));
@@ -380,34 +416,56 @@
        verified here. sync/README.md is where the address comes from. */
     kids.push(h("div",{class:"sect",text:"TV board"}));
     kids.push(field("Channel address", TV.api, function(v){ TV.api=v.trim(); tvSave(); }, false));
-    kids.push(field("Key", TV.key, function(v){ TV.key=v; tvSave(); }, false, {type:"password"}));
+    kids.push(field("Key", TV.key, function(v){ TV.key=v; tvSave(); var sb=document.getElementById("tvsend"); if(sb) sb.disabled=!TV.api||!TV.key; }, false, {type:"password"}));
     kids.push(h("div",{class:"row"},[
       h("button",{class:"btn sm "+(TV.on?"":"quiet"),text:TV.on?"Sending to the TV":"Not sending",
         onclick:function(){ TV.on=!TV.on; tvSave(); tvState.next=0; tvState.error=null; render(); if(TV.on) tvPost(true); }}),
-      h("button",{class:"btn quiet sm",text:"Send now",disabled:!TV.api||!TV.key,onclick:function(){ tvPost(true); }})
+      h("button",{class:"btn quiet sm",id:"tvsend",text:"Send now",disabled:!TV.api||!TV.key,onclick:function(){ tvPost(true); }})
     ]));
+    /* The TV already holds a bigger round than this phone: a fresh phone must
+       not wipe it by sending its empty one (checker, 2026-09-13). Kyle says. */
+    if(tvState.hold) kids.push(h("div",{class:"check bad"},[
+      h("div",{class:"t",text:"The TV is showing a round with "+tvState.hold.teams+" teams and "+tvState.hold.verified+" players in. This phone has "+Object.keys(verifiedById()).length+". Sending replaces what the TV shows."}),
+      h("div",{class:"row"},[
+        h("button",{class:"btn danger sm",text:"Replace it",onclick:function(){ tvState.hold=null; tvState.checked=true; render(); tvPost(true); }}),
+        !S.teams.length?h("button",{class:"btn quiet sm",text:"Get it from the TV",onclick:restoreFromTV}):null
+      ]) ]));
     /* How the club board rotates is Kyle's to set here, not a query string he
        has to type on a Fire TV remote. Kyle, 2026-09-12: "Is the number of
        teams per page and the scroll rate picked by me (same as Vander point
        app)?" It rides in the payload and the board takes it on the next send. */
-    kids.push(h("div",{class:"lab",style:"margin-top:10px",text:"Teams on screen at once"}));
-    kids.push(h("div",{class:"row"}, [9,13,17,25].map(function(n){
-      return h("button",{class:"btn sm "+(TV.rows===n?"":"quiet"),text:(n>=25?"all":String(n)),
+    /* "all" is 40, the most the board takes; the board then shows as many as
+       fit the screen and turns pages for the rest. It used to mean 25. */
+    kids.push(h("div",{class:"lbl",style:"margin-top:10px",text:"Teams on screen at once"}));
+    kids.push(h("div",{class:"row"}, [9,13,17,40].map(function(n){
+      return h("button",{class:"btn sm "+(TV.rows===n?"":"quiet"),text:(n>=40?"all":String(n)),
         onclick:function(){ TV.rows=n; tvSave(); render(); }});
     })));
-    kids.push(h("div",{class:"lab",style:"margin-top:10px",text:"Seconds a page"}));
+    kids.push(h("div",{class:"lbl",style:"margin-top:10px",text:"Seconds a page"}));
     kids.push(h("div",{class:"row"}, [5,10,15,20,30].map(function(n){
       return h("button",{class:"btn sm "+(TV.secs===n?"":"quiet"),text:String(n),
         onclick:function(){ TV.secs=n; tvSave(); render(); }});
     })));
     kids.push(h("div",{class:"note",text:"TV board · "+tvStatus()}));
 
-    kids.push(h("button",{class:"btn "+(locked?"quiet":"gold"),style:"margin-top:8px",text:locked?"Unlock":"Lock for the round",onclick:function(){
-      if(!locked){ S.locked=true; S.confirmUnlock=false; render(); return; }
-      if(!S.confirmUnlock){ S.confirmUnlock=true; render(); return; }
-      S.locked=false; S.confirmUnlock=false; render(); }}));
-    if(locked && S.confirmUnlock) kids.push(h("div",{class:"check bad"},[ h("div",{class:"t",text:"Unlock while the round is on? Tap Unlock again to do it. The pots and cutoff are money; changing them mid-round moves money."}),
-      h("button",{class:"btn quiet sm",text:"Leave it locked",onclick:function(){ S.confirmUnlock=false; render(); }}) ]));
+    /* The cutoff and the pots are money and are not changed once scores are in
+       (RULES.md "The cutoff is input data"). So the lock refuses two pots with
+       no cutoff, and Unlock is refused once any team's scores are saved or
+       parked. To change them after that, start a new round. */
+    var scoresIn=S.cards.length+S.parked.length+(S.draft?1:0);
+    if(locked && scoresIn){
+      kids.push(h("button",{class:"btn quiet",style:"margin-top:8px",text:"Unlock",disabled:true}));
+      kids.push(h("div",{class:"note",text:"Scores are in, so the pots and the cutoff stay as they are."}));
+    } else {
+      kids.push(h("button",{class:"btn "+(locked?"quiet":"gold"),style:"margin-top:8px",text:locked?"Unlock":"Lock for the round",onclick:function(){
+        if(!locked){ if(S.two && S.cutoff==null){ S.lockNote="Type the gross pot's handicap cutoff first."; render(); return; }
+          S.lockNote=null; S.locked=true; S.confirmUnlock=false; render(); return; }
+        if(!S.confirmUnlock){ S.confirmUnlock=true; render(); return; }
+        S.locked=false; S.confirmUnlock=false; render(); }}));
+      if(!locked && S.lockNote) kids.push(h("div",{class:"check bad"},[ h("div",{class:"t",text:S.lockNote}) ]));
+      if(locked && S.confirmUnlock) kids.push(h("div",{class:"check bad"},[ h("div",{class:"t",text:"Unlock? Tap Unlock again to do it."}),
+        h("button",{class:"btn quiet sm",text:"Leave it locked",onclick:function(){ S.confirmUnlock=false; render(); }}) ]));
+    }
 
     kids.push(h("div",{class:"stamp",id:"stamp",text:"version …"}));
     paint(top(S.setup.name+" · CCW","Setup", null), kids, null);
@@ -473,12 +531,13 @@
     var pend=S.cards.length-conf;
     var kids=[];
     if(!S.teams.length) kids.push(h("div",{class:"check warn"},[ h("div",{class:"t",text:"No teams yet. Make them on the Roster tab."}) ]));
-    kids.push(h("button",{class:"btn",text:"Enter a scorecard",disabled:!ROSTER.length,onclick:function(){
+    else if(!S.locked) kids.push(h("div",{class:"check warn"},[ h("div",{class:"t",text:"Lock the round on Setup before entering scores."}) ]));
+    kids.push(h("button",{class:"btn",text:"Enter a team's scores",disabled:!S.teams.length||!S.locked,onclick:function(){
       S.draft={id:S.nextId++,step:"photo",players:[],hcp1:{},hcp2:{},s1:{},s2:{},tot:{},notes:[],pass:1,pi:0,nine:0,armed:null,buf:"",order:[],res:{},photo:false};
       render();
     }}));
     kids.push(h("div",{class:"row"},[
-      h("span",{class:"note",text:(S.cutoff==null?"One skins pot, net":"Two pots · gross hcp "+S.cutoff+" and under")+(S.locked?" · locked":" · not locked")})
+      h("span",{class:"note",text:(cutoffNow()==null?"One skins pot, net":"Two pots · gross hcp "+cutoffNow()+" and under")+(S.locked?" · locked":" · not locked")})
     ]));
     if(TV.on || TV.api) kids.push(h("div",{class:"row"},[ h("span",{class:"note",text:"TV board · "+tvStatus()}) ]));
     kids.push(h("button",{class:"btn link",style:"text-align:left;padding:0",text:"How ties were decided",onclick:function(){ S.view="ties"; render(); }}));
@@ -489,20 +548,22 @@
         h("button",{class:"btn gold sm",style:"width:auto",text:"Resume",onclick:function(){ S.parked.splice(idx,1); S.draft=p; render(); }})
       ]));
     });
-    kids.push(h("div",{class:"lbl",text:"Cards in · "+conf+" verified · "+pend+" provisional"}));
+    kids.push(h("div",{class:"lbl",text:"Teams in · "+conf+" verified · "+pend+" provisional"}));
     var list=h("div",{class:"list"});
     S.cards.slice().reverse().forEach(function(c){
-      var names=c.players.map(first).join(", ");
+      var names=c.players.map(first).join(" & ");
       var right;
       if(c.status==="confirmed") right=h("span",{class:"pill ok",text:"Verified"});
+      else if(S.parked.some(function(p){ return p.id===c.id; })) right=h("span",{class:"pill pend",text:"Check parked"});
       else right=h("button",{class:"btn gold sm",style:"width:auto;padding:8px 10px;font-size:15px",text:"Check now",onclick:function(){ checkLater(c); }});
-      list.appendChild(h("div",{class:"item"},[ h("div",{style:"flex:1"},[h("div",{class:"name",text:names})]), right ]));
+      list.appendChild(h("div",{class:"item"},[ h("div",{style:"flex:1"},[h("div",{class:"name",text:names}), h("div",{class:"note",text:"how: "+(c.method||"?")})]), right ]));
     });
     kids.push(list);
+    skinsMoney().forEach(function(k){ kids.push(k); });
     kids.push(h("div",{class:"sect",text:"Files"}));
     kids.push(h("button",{class:"btn quiet sm",text:"Back up this round",onclick:backupRound}));
     if(S.backupNote) kids.push(h("div",{class:"note",text:S.backupNote}));
-    paint(top((S.setup.name||"Mengacci $$")+" · CCW","Scorecards", h("div",{class:"right",text:S.setup.date||""})), kids, null);
+    paint(top((S.setup.name||"Mengacci $")+" · CCW","Team scores", h("div",{class:"right",text:S.setup.date||""})), kids, null);
   }
   function draftLabel(d){
     var names=d.players.length?d.players.map(first).join(", "):"no players yet";
@@ -511,35 +572,131 @@
                d.step==="verify"?"ready to verify" : d.step==="diff"?"settling differences" : "ready to confirm";
     return {names:names, where:where};
   }
-  /* a provisional card comes back for its second read */
+  /* a provisional card comes back for its second read. The saved card STAYS
+     in the list until the check is saved over it: cancelling a check used to
+     throw the saved scores away (checker, 2026-09-13). */
   function checkLater(c){
     var d={id:c.id,step:"verify",players:c.players.slice(),hcp1:{},hcp2:{},s1:{},s2:{},tot:{},notes:(c.notes||[]).slice(),pass:1,pi:0,nine:0,armed:null,buf:"",order:c.players.slice(),res:{},photo:!!c.photo,recheck:true};
     c.players.forEach(function(pid){ d.hcp1[pid]=c.hcp[pid]; d.s1[pid]=c.scores[pid].map(function(v){ return v==null?NONE:v; }); });
-    S.cards=S.cards.filter(function(x){ return x.id!==c.id; });
     S.draft=d; render();
+  }
+
+  /* ---------- the skins money: Kyle's screen only, never the board ----------
+     Pot ÷ number of skins (RULES.md), from verified teams only. Shown to the
+     cent, rounded down; the cents left over go to the house (Kyle, 2026-09-13:
+     "Unwanted cents come back to the house (me)"), and it is said which, because who gets
+     it is still Kyle's to decide, and so is an unwon pot. */
+  /* All money is worked out in cents by scoring.js (placeMoney, skinsMoney); this only shows it. */
+  function dollars(c){ c=Math.max(0,Math.round(c)); return "$"+Math.floor(c/100)+(c%100?"."+String(c%100).padStart(2,"0"):""); }
+  function cents(v){ var n=Number(v); return n>0?Math.round(n*100):0; }
+  function ordinal(n){ var s=["th","st","nd","rd"], v=n%100; return n+(s[(v-20)%10]||s[v]||s[0]); }
+  function note(t){ return h("div",{class:"note",text:t}); }
+  function moneyRow(name, sub, amt){ return h("div",{class:"item"},[ h("div",{class:"name",text:name}), sub?h("div",{class:"note",text:sub}):null, h("div",{class:"big",style:"font-size:24px",text:amt}) ]); }
+  function skinsMoney(){
+    var st=boardFacts(), by=st.by, players=Object.keys(by).map(function(k){ return by[k]; });
+    var pots=Sc.pots(players, cutoffNow()), out=[];
+    var notFinal= st.status!=="final" ? h("div",{class:"check warn"},[ h("div",{class:"t",text:"Not final: "+(st.teamsTotal-st.teamsIn)+" team"+(st.teamsTotal-st.teamsIn===1?"":"s")+" not in"+(st.pend?", "+st.pend+" provisional":"")+". These can change."}) ]) : null;
+
+    /* the tournament: the places paid */
+    out.push(h("div",{class:"sect",text:"Tournament money"}));
+    if(notFinal) out.push(notFinal);
+    var amounts=(S.setup.places||[]).map(cents), pm=Sc.placeMoney(st.st.done, amounts);
+    if(!amounts.some(function(c){ return c>0; })) out.push(note("No place amounts typed on Setup."));
+    else {
+      var pbox=h("div",{class:"list"});
+      pm.rows.filter(function(r){ return r.cents>0; }).forEach(function(r){
+        pbox.appendChild(moneyRow(ordinal(r.place)+(r.tied?" (tie)":"")+" · "+r.team.players.map(first).join(" & "), r.tied?"identical cards · split":"", dollars(r.cents)));
+      });
+      out.push(pbox);
+      if(pm.left) out.push(note(pm.left+"¢ to the house"));
+      if(pm.unpaid) out.push(note(dollars(pm.unpaid)+" for places no team has reached yet"));
+    }
+
+    /* the skins */
+    out.push(h("div",{class:"sect",text:"Skins money"}));
+    if(notFinal) out.push(h("div",{class:"check warn"},[ h("div",{class:"t",text:notFinal.textContent}) ]));
+    var ids=function(m){ return m.map(function(p){ return p.id; }); };
+    var spec=cutoffNow()==null ? [{name:"Net pot",cents:cents(S.setup.net),rows:Sc.skins(pots.net,false),players:ids(pots.net)}]
+      : [{name:"Gross pot",cents:cents(S.setup.gross),rows:Sc.skins(pots.gross,true),players:ids(pots.gross)},
+         {name:"Net pot",cents:cents(S.setup.net),rows:Sc.skins(pots.net,false),players:ids(pots.net)}];
+    Sc.skinsMoney(spec).forEach(function(p){
+      if(!p.cents && !p.from){ out.push(note(p.name+": no amount typed on Setup.")); return; }
+      if(p.rolledTo){ out.push(note(p.name+" "+dollars(p.cents)+" · no skins won · all of it goes to the "+p.rolledTo.toLowerCase())); return; }
+      if(!p.skins.length){
+        out.push(note(p.name+" "+dollars(p.total)+" · no skins won · refunded: "+(p.players.length?dollars(p.refundEach)+" to each of its "+p.players.length+" players"+(p.left?" · "+p.left+"¢ to the house":""):"to its players once their scores are in")));
+        return;
+      }
+      out.push(note(p.name+" "+dollars(p.total)+(p.from?" (with the unwon "+p.from.toLowerCase()+")":"")+" · "+p.skins.length+" skin"+(p.skins.length>1?"s":"")+" · "+dollars(p.per)+" a skin"+(p.left?" · "+p.left+"¢ to the house":"")));
+      var holes={}, order=[], sbox=h("div",{class:"list"});
+      p.skins.forEach(function(r){ if(!holes[r.holder]){ holes[r.holder]=[]; order.push(r.holder); } holes[r.holder].push(r.hole); });
+      order.forEach(function(pid){ sbox.appendChild(moneyRow(personName(pid), "hole"+(holes[pid].length>1?"s ":" ")+holes[pid].join(", "), dollars(p.winners[pid]))); });
+      out.push(sbox);
+    });
+    return out;
+  }
+
+  /* ---------- bring a round back: from a backup file, or from the TV ---------- */
+  function restoreRound(o, from){
+    if(!o || !o.people || !o.teams){ S.restoreNote="That is not a Mengacci round."; render(); return; }
+    S.people=o.people; S.teams=o.teams; S.withdrawn=o.withdrawn||[];
+    S.two=(o.two!==undefined)?!!o.two:(o.cutoff!=null); S.cutoff=(o.cutoff==null?null:o.cutoff);
+    S.setup={name:(o.event&&o.event.name)||"Mengacci $$", date:(o.event&&o.event.date)||"", net:(o.event&&o.event.net)||"", gross:(o.event&&o.event.gross)||"", places:(o.event&&o.event.places)||[""]};
+    S.cards=o.cards||[]; S.parked=o.parked||[]; S.draft=o.draft||null;
+    S.locked=!!o.locked || S.cards.length>0;
+    var maxId=0; S.cards.concat(S.parked).forEach(function(c){ maxId=Math.max(maxId, Number(c.id)||0); }); if(S.draft) maxId=Math.max(maxId, Number(S.draft.id)||0);
+    S.nextId=maxId+1;
+    S.nextPerson=1+S.people.reduce(function(m,p){ return Math.max(m, Number(p.id)||0); },0);
+    S.nextTeam=1+S.teams.reduce(function(m,t){ return Math.max(m, parseInt(String(t.id).replace(/\D/g,""),10)||0); },0);
+    S.restoreNote="Brought back from the "+from+": "+S.teams.length+" teams, "+S.cards.length+" saved. "+(from==="TV"?"Type the pot amounts again; the TV never carries money.":"");
+    tvState.hold=null; tvState.checked=true;
+    S.view="setup"; render();
+  }
+  /* The TV holds only verified scores, so each team whose two players are in
+     comes back as a verified card, filed "Brought back from the TV". */
+  function restoreFromTV(){
+    if(!TV.api) return;
+    S.restoreNote="Asking the TV…"; render();
+    tvFetch(TV.api+(TV.api.indexOf("?")>=0?"&":"?")+"t="+Date.now(), {method:"GET"})
+      .then(function(L){
+        if(!L || L.format!=="mengacci-live-v1" || !(L.teams||[]).length){ S.restoreNote="The TV has no round to bring back."; render(); return; }
+        var by=L.by||{}, cards=[], id=1;
+        L.teams.forEach(function(t){
+          if(!t.players.every(function(pid){ return by[pid] && Array.isArray(by[pid].scores); })) return;
+          var c={id:id++,status:"confirmed",method:"Brought back from the TV",time:now(),players:t.players.slice(),notes:[],hcp:{},scores:{},photo:false};
+          t.players.forEach(function(pid){ c.hcp[pid]=by[pid].hcp; c.scores[pid]=by[pid].scores.slice(); });
+          cards.push(c);
+        });
+        restoreRound({people:L.people, teams:L.teams, withdrawn:L.withdrawn, cutoff:L.cutoff, event:L.event, cards:cards, locked:cards.length>0}, "TV");
+      })
+      .catch(function(e){ S.restoreNote="Could not reach the TV ("+tvWhy(e)+")."; render(); });
   }
 
   /* ---------- the round's files: JSON plus photos, to the share sheet or a download ---------- */
   function roundJSON(){
     return {
-      format:"mengacci-round-v1", written:new Date().toISOString(), event:S.setup, cutoff:S.cutoff, locked:S.locked,
+      format:"mengacci-round-v1", written:new Date().toISOString(), event:S.setup, two:S.two, cutoff:S.cutoff, locked:S.locked,
       people:S.people, teams:S.teams, withdrawn:S.withdrawn,
-      cards:S.cards.map(function(c){ return {id:c.id,status:c.status,method:c.method,time:c.time,players:c.players,hcp:c.hcp,scores:c.scores,notes:c.notes,photo:!!c.photo}; })
+      cards:S.cards.map(function(c){ return {id:c.id,status:c.status,method:c.method,time:c.time,players:c.players,hcp:c.hcp,scores:c.scores,notes:c.notes,photo:!!c.photo}; }),
+      /* half-done work too, so a backup is the whole phone and not just the saved teams */
+      parked:S.parked, draft:S.draft
     };
   }
+  function clearPhotos(){ openDB().then(function(d){ if(!d) return; try{ d.transaction("photos","readwrite").objectStore("photos").clear(); }catch(e){} }); }
   function backupRound(){
     var name="mengacci_"+stampDate()+"_"+(S.setup.name||"round").replace(/[^A-Za-z0-9]+/g,"-")+".json";
     var json=new Blob([JSON.stringify(roundJSON(),null,1)],{type:"application/json"});
     allPhotos().then(function(ph){
       var files=[new File([json],name,{type:"application/json"})];
       ph.forEach(function(p){ files.push(new File([p.blob],"mengacci_"+stampDate()+"_card"+p.id+".jpg",{type:p.blob.type||"image/jpeg"})); });
+      function download(why){
+        var a=document.createElement("a"); a.href=URL.createObjectURL(json); a.download=name; document.body.appendChild(a); a.click(); a.remove();
+        S.backupNote=(why?why+" · ":"")+"Downloaded "+name+(ph.length?" · photos stay on the phone":"")+"."; render();
+      }
       if(navigator.share && navigator.canShare && navigator.canShare({files:files})){
         navigator.share({files:files,title:"Mengacci round"}).then(function(){ S.backupNote="Shared "+files.length+" file"+(files.length>1?"s":"")+" at "+now()+"."; render(); })
-          .catch(function(){ S.backupNote="Share cancelled."; render(); });
-      } else {
-        var a=document.createElement("a"); a.href=URL.createObjectURL(json); a.download=name; document.body.appendChild(a); a.click(); a.remove();
-        S.backupNote="Downloaded "+name+(ph.length?" · photos stay on the phone; share needs a phone browser":"")+"."; render();
-      }
+          /* a share that FAILED (not one Kyle cancelled) still saves the file */
+          .catch(function(e){ if(e && e.name==="AbortError"){ S.backupNote="Share cancelled. Nothing saved."; render(); } else download("Share did not work"); });
+      } else download("");
     });
   }
 
@@ -555,10 +712,17 @@
     kids.push(h("button",{class:"btn",text:photoURL||d.photo?"Retake":"Take photo",onclick:function(){inp.click();}}));
     kids.push(h("button",{class:"btn quiet",text:photoURL||d.photo?"Continue":"Skip the photo",onclick:function(){S.draft.step="pick";render();}}));
     kids.push(footer());
-    paint(top("New scorecard","Photo"), kids, null);
+    paint(top("New card","Photo"), kids, null);
   }
   function footer(){
     var d=S.draft;
+    if(d.confirmCancel && d.recheck) return h("div",{class:"check bad"},[
+      h("div",{class:"t",text:"Stop checking? The saved scores stay as they were, still provisional."}),
+      h("div",{class:"row"},[
+        h("button",{class:"btn danger sm",text:"Stop checking",onclick:function(){ S.draft=null; photoURL=null; S.view="home"; render(); }}),
+        h("button",{class:"btn quiet sm",text:"Keep going",onclick:function(){ d.confirmCancel=false; render(); }})
+      ])
+    ]);
     if(d.confirmCancel) return h("div",{class:"check bad"},[
       h("div",{class:"t",text:"Throw away this card? Everything typed for it is lost."}),
       h("div",{class:"row"},[
@@ -568,31 +732,32 @@
     ]);
     return h("div",{class:"row links"},[
       h("button",{class:"btn link",text:"Park this card",onclick:parkCard}),
-      h("button",{class:"btn link",text:"Cancel this card",onclick:function(){ d.confirmCancel=true; render(); }})
+      h("button",{class:"btn link",text:d.recheck?"Stop checking":"Cancel this card",onclick:function(){ d.confirmCancel=true; render(); }})
     ]);
   }
   function parkCard(){ var d=S.draft; d.confirmCancel=false; d.parkedAt=now(); S.parked.push(d); S.draft=null; photoURL=null; S.view="home"; render(); }
 
   /* ---------- PICK ---------- */
   function renderPick(){
-    var d=S.draft, kids=[];
+    var d=S.draft, kids=[], shown=0;
     var list=h("div",{class:"list"});
-    ROSTER.filter(function(p){ return !p.out; }).forEach(function(p){
-      var on=d.players.indexOf(p.id)>=0, used=onACard(p.id);
-      list.appendChild(h("button",{class:"pick"+(on?" on":"")+(used?" done":""),onclick:function(){
-        if(on) d.players=d.players.filter(function(x){return x!==p.id;});
-        else if(d.players.length<4) d.players.push(p.id);
-        render();
-      }},[ h("span",{class:"box",text:on?"✓":""}), h("span",{class:"name",text:p.name}), h("span",{class:"pill team",text:"Team "+p.team}), used?h("span",{class:"pill ok",text:"In"}):null ]));
+    S.teams.forEach(function(t,i){
+      if(isWithdrawn(t)) return;
+      shown++;
+      /* One player, one card (Kyle, 2026-09-13). A team already saved or
+         parked cannot be picked again; a second card used to replace the
+         first silently, handicap and pot included. */
+      var used=t.players.some(onACard);
+      list.appendChild(h("button",{class:"pick"+(used?" done":""),disabled:used,onclick:function(){
+        if(used) return;
+        d.players=t.players.slice(); d.order=d.players.slice(); d.pi=0; d.pass=1; d.step="hcp"; d.buf=""; render();
+      }},[ h("span",{class:"name",text:t.players.map(personName).join(" & ")}), h("span",{class:"pill team",text:"Team "+(i+1)}), used?h("span",{class:"pill ok",text:"In"}):null ]));
     });
     kids.push(list);
-    var n=d.players.length;
-    kids.push(h("button",{class:"btn",text:n?("Enter "+n+" player"+(n>1?"s":"")):"Tap the names on the card",disabled:n<1,onclick:function(){
-      d.order=d.players.slice(); d.pi=0; d.pass=1; d.step="hcp"; d.buf=""; render();
-    }}));
+    if(!shown) kids.push(h("div",{class:"check warn"},[ h("div",{class:"t",text:"No teams to enter. Make them on the Roster tab."}) ]));
     kids.push(h("button",{class:"btn link",text:"Back to the photo",onclick:function(){d.step="photo";render();}}));
     kids.push(footer());
-    paint(top("New scorecard","Players"), kids, null);
+    paint(top("New card","Which team?"), kids, null);
   }
 
   /* ---------- entry helpers ---------- */
@@ -622,10 +787,11 @@
     var d=S.draft, kids=[];
     kids.push(whoBlock("Handicap"));
     var oldHcp=(d.pass===1?d.hcp1:d.hcp2)[cur()];
-    kids.push(h("div",{class:"digits"},[ h("div",{class:"box"+(d.buf?"":" empty"),text:d.buf||(oldHcp!=null?String(oldHcp):"–")}), h("div",{class:"note",text:"course handicap, from the card"}) ]));
+    kids.push(h("div",{class:"digits"},[ h("div",{class:"box"+(d.buf?"":" empty"),text:d.buf||(oldHcp!=null?String(oldHcp):"–")}), h("div",{class:"note",text:"course handicap, from the card · 0 to 30"}) ]));
     kids.push(footer());
-    paint(top(d.pass===1?"New scorecard":"Second read","Handicap"), kids,
-      digitPad(function(n){ if(d.buf.length<2){ d.buf+=String(n); render(); } },
+    paint(top(d.pass===1?"New card":"Second read","Handicap"), kids,
+      /* 0 to 30 (Kyle, 2026-09-13: "handicaps can be as high as 30!"); a key that would go past 30 does nothing */
+      digitPad(function(n){ var nb=d.buf+String(n); if(nb.length<=2 && parseInt(nb,10)<=30){ d.buf=nb; render(); } },
                function(){ d.buf=d.buf.slice(0,-1); render(); },
                function(){ var v; if(d.buf===""){ if(oldHcp==null) return; v=oldHcp; } else v=parseInt(d.buf,10);
                  if(d.pass===1) d.hcp1[cur()]=v; else d.hcp2[cur()]=v;
@@ -690,7 +856,7 @@
     if(!done) kids.push(h("div",{class:"sumline"},[ h("span",{class:"lbl",text:(d.nine===0?"Front":"Back")+" so far · "+filled(a,o,o+9)+" of 9"}), h("span",{class:"big",text:String(s)}) ]));
     kids.push(h("button",{class:"btn link",text:"Back to handicap",onclick:function(){ d.step="hcp"; d.buf=""; render(); }}));
     kids.push(footer());
-    paint(top(d.pass===1?"New scorecard":"Second read · first entry hidden",(d.nine===0?"Front":"Back")+" 9"), kids, scorePad(), d.pass===2?"pass2":"");
+    paint(top(d.pass===1?"New card":"Second read · first entry hidden",(d.nine===0?"Front":"Back")+" 9"), kids, scorePad(), d.pass===2?"pass2":"");
   }
   function pressScore(n){
     var d=S.draft, a=scoresFor(cur()), o=d.nine*9;
@@ -709,6 +875,7 @@
   function acceptTotal(v){ var d=S.draft, pid=cur(); if(!d.tot[pid]) d.tot[pid]={}; d.tot[pid][d.nine===0?"f":"b"]=v; d.buf=""; afterNine(); }
   function afterNine(){
     var d=S.draft;
+    if(d.fixing){ d.fixing=false; d.armed=null; d.buf=""; d.step="verify"; render(); return; }   /* sent back from Verify to fix one nine */
     if(d.nine===0){ d.nine=1; d.armed=null; d.step="holes"; render(); return; }
     d.pi++; d.nine=0; d.armed=null; d.buf="";
     if(d.pi<d.order.length){ d.step="hcp"; render(); return; }
@@ -717,19 +884,56 @@
   }
 
   /* ---------- VERIFY ---------- */
+  /* Holes where nobody on the team has a score. Kyle, 2026-09-13: "Someone
+     must finish every hole." Such a team could never place, and the board
+     could never reach FINAL, so the card is not saved in any form. */
+  function nobodyHoles(sc, players){
+    var out=[]; for(var i=0;i<18;i++) if(players.every(function(pid){ var v=sc[pid]&&sc[pid][i]; return v==null||v===NONE; })) out.push(i); return out;
+  }
+  function nobodyWarning(holes){
+    return h("div",{class:"check bad"},[ h("div",{class:"t",text:(holes.length>1?"Holes ":"Hole ")+holes.map(function(i){return i+1;}).join(", ")+": nobody on this team has a score. Someone must finish every hole."}) ]);
+  }
   function renderVerify(){
     var d=S.draft, kids=[];
-    kids.push(h("div",{class:"big",text:"How do you want it checked?"}));
+    var gap=nobodyHoles(d.s1, d.players);
+    kids.push(h("div",{class:"big",text:gap.length?"Fix the card first":"How do you want it checked?"}));
     var list=h("div",{class:"list"});
     d.players.forEach(function(pid){ var a=d.s1[pid];
       list.appendChild(h("div",{class:"item"},[ h("div",{class:"name",text:personName(pid)}), h("div",{class:"note",text:"hcp "+d.hcp1[pid]+" · "+sum(a,0,9)+" + "+sum(a,9,18)+" = "+sum(a,0,18)+(hasNone(a,0,18)?" · holes not played":"")}) ])); });
     kids.push(list);
-    kids.push(h("button",{class:"btn gold",text:"Second read now · random order",onclick:function(){
+    if(d.error) kids.push(h("div",{class:"check bad"},[ h("div",{class:"t",text:d.error}) ]));
+    if(gap.length){
+      kids.push(nobodyWarning(gap));
+      /* back to the nine that holds the hole, for each player; Verify comes back after it */
+      d.players.forEach(function(pid, pi){
+        [0,1].forEach(function(nine){
+          if(!gap.some(function(i){ return Math.floor(i/9)===nine; })) return;
+          kids.push(h("button",{class:"btn quiet sm",text:"Fix "+personName(pid)+" · "+(nine?"back":"front")+" 9",onclick:function(){
+            d.order=d.players.slice(); d.pi=pi; d.nine=nine; d.armed=null; d.ask=null; d.buf=""; d.fixing=true; d.step="holes"; render(); }}));
+        });
+      });
+      kids.push(footer());
+      paint(top("New card","Verify"), kids, null);
+      return;
+    }
+    kids.push(h("button",{class:"btn gold",text:"I type it again · random order",onclick:function(){
       d.order=shuffle(d.players); d.pi=0; d.pass=2; d.nine=0; d.armed=null; d.buf=""; d.step="hcp"; render(); }}));
+    /* ScannerBot reads the photo of the whole card and finds these two typed names among the four.
+       Nothing is wired to him yet, so this parks the team as provisional, waiting. The money never waits on him. */
+    kids.push(h("button",{class:"btn",text:"ScannerBot checks the photo",disabled:!d.photo,
+      onclick:function(){ saveCard("provisional","Waiting for ScannerBot", d.s1, d.hcp1); }}));
+    if(!d.photo) kids.push(h("div",{class:"note",text:"ScannerBot needs a photo of the card. Go back and take one."}));
     if(!d.recheck) kids.push(h("button",{class:"btn quiet",text:"Save provisional · check later",onclick:function(){ saveCard("provisional","Provisional", d.s1, d.hcp1); }}));
-    kids.push(h("button",{class:"btn link",text:"Accept without checking",onclick:function(){ saveCard("confirmed","Unchecked", d.s1, d.hcp1); }}));
+    if(!d.skipAsk) kids.push(h("button",{class:"btn link",text:"Skip the check · counts as verified",onclick:function(){ d.skipAsk=true; render(); }}));
+    else kids.push(h("div",{class:"check bad"},[
+      h("div",{class:"t",text:"Nothing will check this team. It goes on the board as verified and the money counts it."}),
+      h("div",{class:"row"},[
+        h("button",{class:"btn danger sm",text:"Skip it · on me",onclick:function(){ saveCard("confirmed","Skipped by Kyle", d.s1, d.hcp1); }}),
+        h("button",{class:"btn quiet sm",text:"No, check it",onclick:function(){ d.skipAsk=false; render(); }})
+      ])
+    ]));
     kids.push(footer());
-    paint(top("New scorecard","Verify"), kids, null);
+    paint(top("New card","Verify"), kids, null);
   }
 
   /* ---------- DIFF ---------- */
@@ -777,20 +981,31 @@
   function renderConfirm(){
     var d=S.draft, r=resolved(), n=diffs().length, kids=[];
     var t=h("table",{},[ h("tr",{},[h("th",{text:"Player"}),h("th",{text:"Hcp",class:"r"}),h("th",{text:"Out",class:"r"}),h("th",{text:"In",class:"r"}),h("th",{text:"Gross",class:"r"}),h("th",{text:"Net",class:"r"})]) ]);
-    d.players.forEach(function(pid){ var a=r.sc[pid], hc=r.hcp[pid], g=sum(a,0,18);
+    d.players.forEach(function(pid){ var a=r.sc[pid], hc=r.hcp[pid], g=sum(a,0,18), part=hasNone(a,0,18);
+      /* net over the holes he played: with holes missing, gross minus the whole handicap means nothing */
+      var net=Sc.netScores(toNull(a), hc).reduce(function(t,v){ return v==null?t:t+v; },0);
       t.appendChild(h("tr",{},[ h("td",{text:personName(pid)}), h("td",{class:"n",text:String(hc)}),
         h("td",{class:"n",text:String(sum(a,0,9))}), h("td",{class:"n",text:String(sum(a,9,18))}),
-        h("td",{class:"n",text:String(g)+(hasNone(a,0,18)?"*":"")}), h("td",{class:"n",text:String(g-hc)}) ])); });
+        h("td",{class:"n",text:String(g)+(part?"*":"")}), h("td",{class:"n",text:String(net)+(part?"*":"")}) ])); });
     kids.push(t);
     kids.push(h("div",{class:"check good"},[ h("div",{class:"t",text:"Second read · "+(n?n+" difference"+(n>1?"s":"")+" settled against the paper":"no differences")}),
       d.notes.length?h("div",{text:d.notes.join(". ")}):null ]));
-    kids.push(h("button",{class:"btn",text:"Confirm card · verified",onclick:function(){ saveCard("confirmed","Second read", r.sc, r.hcp); }}));
+    var gap=nobodyHoles(r.sc, d.players);
+    if(gap.length) kids.push(nobodyWarning(gap));
+    if(d.error) kids.push(h("div",{class:"check bad"},[ h("div",{class:"t",text:d.error}) ]));
+    kids.push(h("button",{class:"btn",text:"Confirm card · verified",disabled:gap.length>0,onclick:function(){ saveCard("confirmed","Second read", r.sc, r.hcp); }}));
     kids.push(h("button",{class:"btn link",text:"Back to differences",onclick:function(){ d.step="diff"; render(); }}));
     paint(top("Second read","Confirm"), kids, null, "pass2");
   }
   function saveCard(status, method, sc, hcp){
-    var d=S.draft, card={id:d.id, status:status, method:method, time:now(), players:d.players.slice(), notes:d.notes.slice(), hcp:{}, scores:{}, photo:!!d.photo};
+    var d=S.draft;
+    /* the last guard, whatever screen got here: one player, one card; someone on every hole */
+    var clash=S.cards.concat(S.parked).filter(function(c){ return c.id!==d.id && c.players.some(function(pid){ return d.players.indexOf(pid)>=0; }); });
+    if(clash.length){ d.error=clash[0].players.map(personName).join(" & ")+" already have a card. One player, one card."; render(); return; }
+    if(nobodyHoles(sc, d.players).length){ render(); return; }
+    var card={id:d.id, status:status, method:method, time:now(), players:d.players.slice(), notes:d.notes.slice(), hcp:{}, scores:{}, photo:!!d.photo};
     d.players.forEach(function(pid){ card.hcp[pid]=hcp[pid]; card.scores[pid]=toNull(sc[pid]); });
+    S.cards=S.cards.filter(function(c){ return c.id!==d.id; });   /* a checked card replaces its own provisional copy */
     S.cards.push(card); S.draft=null; photoURL=null; S.view=(status==="confirmed"?"board":"home"); render();
   }
 
@@ -800,26 +1015,36 @@
     S.cards.forEach(function(c){ if(c.status!=="confirmed") return; c.players.forEach(function(pid){ var p=player(pid); if(p && !p.out) by[pid]={id:pid,hcp:c.hcp[pid],scores:c.scores[pid]}; }); });
     return by;
   }
-  function renderBoard(){
-    var by=verifiedById(), ids=Object.keys(by).map(Number);
-    var pend=S.cards.filter(function(c){return c.status!=="confirmed";}).length;
-    var st=Sc.standings(S.teams, by, S.withdrawn);
+  /* provisional cards that still matter: a withdrawn team's card no longer holds up FINAL */
+  function pendingCount(){
+    return S.cards.filter(function(c){ return c.status!=="confirmed" && c.players.some(function(pid){ var p=player(pid); return p && !p.out; }); }).length;
+  }
+  function boardFacts(){
+    var by=verifiedById(), pend=pendingCount(), st=Sc.standings(S.teams, by, S.withdrawn);
     var teamsTotal=S.teams.length-st.withdrawn.length, teamsIn=st.done.length;
-    var status=Sc.boardStatus(teamsTotal, teamsIn, pend);
+    return {by:by, pend:pend, st:st, teamsTotal:teamsTotal, teamsIn:teamsIn, status:Sc.boardStatus(teamsTotal, teamsIn, pend)};
+  }
+  /* identical cards share a rank; the next team counts everyone above it */
+  function ranks(done){
+    var out=[]; done.forEach(function(x,i){ out.push(i>0 && Sc.matchOfCards(done[i-1].bb, x.bb).d===0 ? out[i-1] : i+1); }); return out;
+  }
+  function renderBoard(){
+    var f=boardFacts(), by=f.by, ids=Object.keys(by).map(Number), st=f.st, teamsTotal=f.teamsTotal, teamsIn=f.teamsIn, status=f.status;
     var eyebrow= status==="none" ? "No teams yet" : status==="final" ? "FINAL · all "+teamsTotal+" teams reported" : "TENTATIVE · "+teamsIn+" of "+teamsTotal+" teams reported";
     var kids=[];
 
     /* teams: best ball first, to par */
     var tt=h("table",{class:"tight"},[h("tr",{},[h("th",{text:""}),h("th",{text:"Team"}),h("th",{text:"To par",class:"r"}),h("th",{text:"Net",class:"r"})])]);
+    var rk=ranks(st.done);
     st.done.forEach(function(x,idx){
-      tt.appendChild(h("tr",{},[h("td",{class:"hn",text:String(idx+1)}),h("td",{class:"team",text:x.team.players.map(first).join(" & ")}),h("td",{class:"n topar",text:Sc.toPar(x.total)}),h("td",{class:"n muted",text:String(x.total)})]));
+      tt.appendChild(h("tr",{},[h("td",{class:"hn",text:String(rk[idx])}),h("td",{class:"team",text:x.team.players.map(first).join(" & ")}),h("td",{class:"n topar",text:Sc.toPar(x.total)}),h("td",{class:"n muted",text:String(x.total)})]));
     });
     st.waiting.forEach(function(t){ tt.appendChild(h("tr",{},[h("td",{class:"hn",text:""}),h("td",{class:"team muted",text:t.players.map(first).join(" & ")}),h("td",{colspan:"2"},[h("span",{class:"pill team",text:"Scores not in yet"})])])); });
     var teamsHead=h("div",{class:"sect",text:"Tournament · 2-man best ball net"});
 
     /* skins per pot */
     var players=ids.map(function(pid){ return by[pid]; });
-    var pots=Sc.pots(players, S.cutoff), blocks=[];
+    var pots=Sc.pots(players, cutoffNow()), blocks=[];
     function potTable(members, useGross, label){
       var t=h("table",{},[h("tr",{},[h("th",{text:"Hole"}),h("th",{text:"Skin"}),h("th",{text:useGross?"Gross":"Net",class:"r"})])]);
       var rows=Sc.skins(members, useGross), n=0;
@@ -830,15 +1055,15 @@
       if(status!=="final" && teamsTotal) head.appendChild(h("span",{class:"pill pend",text:"Not all scores in yet"}));
       return [head, t];
     }
-    if(S.cutoff==null) blocks=potTable(pots.net,false,"Net skins");
-    else blocks=potTable(pots.gross,true,"Gross skins · hcp "+S.cutoff+" and under").concat(potTable(pots.net,false,"Net skins · hcp over "+S.cutoff));
+    if(cutoffNow()==null) blocks=potTable(pots.net,false,"Net skins");
+    else blocks=potTable(pots.gross,true,"Gross skins · hcp "+cutoffNow()+" and under").concat(potTable(pots.net,false,"Net skins · hcp over "+cutoffNow()));
 
     if(isTV()){
       kids=[h("div",{class:"tvgrid"},[ h("div",{class:"col"},[teamsHead, tt]), h("div",{class:"col"},blocks) ])];
     } else {
       kids.push(teamsHead); kids.push(tt); kids.push(h("div",{class:"break"})); blocks.forEach(function(b){ kids.push(b); });
     }
-    paint(top(eyebrow,"Live board", isTV()?h("button",{class:"topbtn btn quiet sm",style:"width:auto",text:"Cards",onclick:function(){S.view="home";render();}}):null), kids, null, isTV()?"tv":"");
+    paint(top(eyebrow,"Live board", isTV()?h("button",{class:"topbtn btn quiet sm",style:"width:auto",text:"Teams",onclick:function(){S.view="home";render();}}):null), kids, null, isTV()?"tv":"");
   }
 
   /* ---------- TV: the live channel to the club TV (sync/README.md) ----------
@@ -851,7 +1076,7 @@
      so they cannot ride out inside a round backup file. The key is typed on
      this phone once; it is not in the repo and never will be. */
   var TV_API = "https://script.google.com/macros/s/AKfycbw756Fq3M4FB9zbR7FWhQiKMozAgSD2W6RjkImAC_4jg7x7l9ykjTzh4ZWUDZcNtbS_/exec";                 /* filled in when the Apps Script is deployed; not a secret */
-  var TV_SOURCE = (LS === "mengacci_v1") ? "real" : "try";
+  var TV_SOURCE = "app";
   var TVK = "mengacci_tv";
   var TV = (function(){ try{ var r=localStorage.getItem(TVK); if(r){ var o=JSON.parse(r); if(o) return o; } }catch(e){} return {api:"",key:"",on:false}; })();
   if(!TV.api && TV_API) TV.api = TV_API;
@@ -864,35 +1089,63 @@
   function tvPayload(){
     return { format:"mengacci-live-v1", posted:new Date().toISOString(), source:TV_SOURCE,
       rows:TV.rows, secs:TV.secs,
-      event:{ name:S.setup.name, date:S.setup.date }, cutoff:S.cutoff,
+      event:{ name:S.setup.name, date:S.setup.date }, cutoff:cutoffNow(),
       people:S.people.map(function(p){ return {id:p.id, first:p.first, last:p.last}; }),
       teams:S.teams.map(function(t){ return {id:t.id, players:t.players.slice()}; }),
       withdrawn:S.withdrawn.slice(),
       by:verifiedById(),
-      pending:S.cards.filter(function(c){ return c.status!=="confirmed"; }).length };
+      pending:pendingCount() };
   }
   /* the payload minus its clock: what actually changed, so an idle phone is quiet */
   function tvSig(p){ var q={}; for(var k in p) if(k!=="posted") q[k]=p[k]; return JSON.stringify(q); }
 
+  /* One fetch, with a clock on it. A send that never answered used to hold the
+     busy flag for good and the TV stopped moving until the app was reloaded.
+     An HTTP error is named as one, not called "no signal". */
+  function tvFetch(url, opts){
+    var ctl=(typeof AbortController!=="undefined")?new AbortController():null, timer=null;
+    if(ctl){ opts.signal=ctl.signal; timer=setTimeout(function(){ ctl.abort(); }, 20000); }
+    return fetch(url, opts).then(function(r){
+      if(timer) clearTimeout(timer);
+      if(!r.ok){ var e=new Error("channel error "+r.status); e.http=true; throw e; }
+      return r.json();
+    }, function(e){ if(timer) clearTimeout(timer); throw e; });
+  }
+  function tvWhy(e){ return e && e.http ? e.message : e && e.name==="AbortError" ? "no answer" : "no signal"; }
+
   function tvPost(force){
     if(!TV.on && !force) return;
     if(!TV.api || !TV.key || tvState.busy) return;
+    if(!S.teams.length) return;                                      /* an empty phone never sends: it would wipe the TV */
+    if(tvState.hold) return;                                         /* waiting on Kyle: the TV holds a bigger round */
     var p=tvPayload(), sig=tvSig(p);
     if(!force && sig===tvState.sig && !tvState.error) return;      /* nothing new to say */
     if(!force && Date.now() < tvState.next) return;                /* backing off after a failure */
     tvState.busy=true; tvState.error=null; tvRepaint();
-    /* text/plain on purpose: application/json makes the browser ask Apps Script
-       for a CORS preflight it does not answer, and the post never leaves. */
-    fetch(TV.api, { method:"POST", headers:{"Content-Type":"text/plain;charset=utf-8"},
-                    body:JSON.stringify({ key:TV.key, round:p }) })
-      .then(function(r){ return r.json(); })
-      .then(function(res){
-        tvState.busy=false;
-        if(res && res.ok){ tvState.sig=sig; tvState.sent=now(); tvState.error=null; tvState.tries=0; tvState.next=0; }
-        else { tvFailed((res && res.error) || "refused"); }
-        tvRepaint();
-      })
-      .catch(function(){ tvState.busy=false; tvFailed("no signal"); tvRepaint(); });
+    /* Before this phone's first send, look at what the TV holds. If it has more
+       players in than this phone, this is probably a phone that lost its round,
+       and sending would put an emptier board over the real one. Ask Kyle. */
+    var look = tvState.checked ? Promise.resolve(null)
+      : tvFetch(TV.api+(TV.api.indexOf("?")>=0?"&":"?")+"t="+Date.now(), {method:"GET"});
+    look.then(function(L){
+      if(!tvState.checked){
+        var theirs=(L && L.by) ? Object.keys(L.by).length : 0, mine=Object.keys(p.by).length;
+        if(L && (L.teams||[]).length && theirs>mine){
+          tvState.busy=false; tvState.hold={teams:L.teams.length, verified:theirs, mine:mine}; tvRepaint(); return null;
+        }
+        tvState.checked=true;
+      }
+      /* text/plain on purpose: application/json makes the browser ask Apps Script
+         for a CORS preflight it does not answer, and the post never leaves. */
+      return tvFetch(TV.api, { method:"POST", headers:{"Content-Type":"text/plain;charset=utf-8"},
+                      body:JSON.stringify({ key:TV.key, round:p }) })
+        .then(function(res){
+          tvState.busy=false;
+          if(res && res.ok){ tvState.sig=sig; tvState.sent=now(); tvState.error=null; tvState.tries=0; tvState.next=0; }
+          else { tvFailed((res && res.error) || "refused"); }
+          tvRepaint();
+        });
+    }).catch(function(e){ tvState.busy=false; tvFailed(tvWhy(e)); tvRepaint(); });
   }
   function tvFailed(msg){
     tvState.error=msg; tvState.tries++;
@@ -905,6 +1158,8 @@
     if(!TV.api) return "not connected";
     if(!TV.key) return "no key yet";
     if(!TV.on) return "off";
+    if(tvState.hold) return "waiting: the TV holds a bigger round";
+    if(!S.teams.length) return "nothing to send yet";
     if(tvState.busy) return "sending…";
     if(tvState.error) return tvState.error + " · retrying";
     return tvState.sent ? "sent " + tvState.sent : "waiting to send";
@@ -917,8 +1172,7 @@
 
   /* ---------- TIES ---------- */
   function renderTies(){
-    var st=Sc.standings(S.teams, verifiedById(), S.withdrawn), list=Sc.ties(st.done), kids=[];
-    kids.push(h("div",{class:"note",text:"Teams on the same net total, and the match-of-cards step that put one above the other: back 9, then last 6, then last 3, then the 18th."}));
+    var st=Sc.standings(S.teams, verifiedById(), S.withdrawn), list=Sc.ties(st.done), kids=[];    kids.push(h("div",{class:"note",text:"Teams on the same net total, and the match-of-cards step that put one above the other: back 9, then last 6, then last 3, then the 18th."}));
     list.forEach(function(x){
       kids.push(h("div",{class:"tie"},[
         h("div",{class:"t",text:x.above.players.map(first).join(" & ")+" above "+x.below.players.map(first).join(" & ")}),
@@ -935,6 +1189,8 @@
   if(typeof navigator!=="undefined" && "serviceWorker" in navigator){
     navigator.serviceWorker.addEventListener("message", function(e){ if(e.data && e.data.version){ versionText=String(e.data.version).replace(/^mengacci-/,""); showVersion(); } });
     navigator.serviceWorker.register("./sw.js").then(function(){ var c=navigator.serviceWorker.controller; if(c) c.postMessage("version"); else versionText="first visit, installing"; showVersion(); }).catch(function(){ versionText="install failed"; showVersion(); });
+    /* the worker takes over after installing: ask it again, or the stamp says "installing" for good */
+    navigator.serviceWorker.addEventListener("controllerchange", function(){ var c=navigator.serviceWorker.controller; if(c) c.postMessage("version"); });
   }
 
   /* the address picks the screen: #board for the TV, #cards, #setup, #roster */

@@ -158,8 +158,64 @@
     return (teamsIn === teamsTotal && !provisionalCards) ? "final" : "tentative";
   }
 
+  /* Tournament money for the places paid. Kyle, 2026-09-13: "Mengacci pays
+     multiple places." All in cents.
+     done: standings().done (already in match-of-cards order); amounts: cents
+     for 1st, 2nd, 3rd ... A tie the match of cards cannot break (identical
+     cards) takes as many places as it has teams and splits their money evenly,
+     rounded down; the leftover cents go to the house (Kyle, 2026-09-13). A paid
+     place no team has reached yet is reported as unpaid, never handed out. */
+  function placeMoney(done, amounts) {
+    var rows = [], left = 0, i = 0;
+    while (i < done.length) {
+      var j = i + 1;
+      while (j < done.length && matchOfCards(done[i].bb, done[j].bb).d === 0) j++;
+      var pot = 0;
+      for (var p = i; p < j; p++) pot += amounts[p] || 0;
+      var each = Math.floor(pot / (j - i));
+      left += pot - each * (j - i);
+      for (var q = i; q < j; q++) rows.push({ team: done[q].team, place: i + 1, tied: j - i > 1, cents: each });
+      i = j;
+    }
+    var unpaid = 0;
+    for (var u = done.length; u < amounts.length; u++) unpaid += amounts[u] || 0;
+    return { rows: rows, left: left, unpaid: unpaid };
+  }
+
+  /* Skins money, in cents. pots: [{name, cents, rows: skins() output, players: [ids in that pot]}].
+     Kyle, 2026-09-13: "If there are two skins pots and one has no winner then
+     all the money goes to the other skins pot. If both pots have no winners the
+     money is refunded to the players." A single pot with no winner is refunded
+     the same way. Each pot is refunded to its own players, evenly, rounded
+     down; leftover cents go to the house. */
+  function skinsMoney(pots) {
+    var res = pots.map(function (p) {
+      return { name: p.name, cents: p.cents, total: p.cents, players: p.players.slice(),
+               skins: p.rows.filter(function (r) { return r.kind === "skin"; }),
+               from: null, rolledTo: null, per: 0, left: 0, winners: {}, refundEach: 0 };
+    });
+    var won = res.filter(function (r) { return r.skins.length; });
+    if (res.length === 2 && won.length === 1) {
+      var dry = res.filter(function (r) { return !r.skins.length; })[0];
+      won[0].total += dry.total; won[0].from = dry.name;
+      dry.rolledTo = won[0].name; dry.total = 0;
+    }
+    res.forEach(function (r) {
+      if (r.skins.length) {
+        r.per = Math.floor(r.total / r.skins.length);
+        r.left = r.total - r.per * r.skins.length;
+        r.skins.forEach(function (s) { r.winners[s.holder] = (r.winners[s.holder] || 0) + r.per; });
+      } else if (!r.rolledTo) {
+        var n = r.players.length;
+        r.refundEach = n ? Math.floor(r.total / n) : 0;
+        r.left = n ? r.total - r.refundEach * n : 0;
+      }
+    });
+    return res;
+  }
+
   return {
-    PAR: PAR, SI: SI, PAR_TOTAL: PAR_TOTAL,
+    PAR: PAR, SI: SI, PAR_TOTAL: PAR_TOTAL, placeMoney: placeMoney, skinsMoney: skinsMoney,
     dots: dots, netScores: netScores, skins: skins, pots: pots, payout: payout,
     bestBall: bestBall, matchOfCards: matchOfCards, standings: standings, ties: ties,
     toPar: toPar, boardStatus: boardStatus, sum: sum

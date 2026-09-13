@@ -17,6 +17,10 @@
     --green:#1E5A3C; --green-ink:#F4F8F4; --green-soft:#DCEADF;
     --gold:#A8781F; --gold-soft:#F5EBD3;
     --k:1;          /* the board shrinks to the screen it is on: see fit() */
+    /* the header and the tie band shrink with it. They used to stay full size,
+       so on a 960x540 window they pushed the bottom teams off the screen.
+       At the approved size (k 0.78) this is 1 and nothing changes. */
+    --hk:calc(var(--k) / 0.78);
   }
   *{box-sizing:border-box}
   html,body{height:100%}
@@ -25,26 +29,29 @@
     overflow:hidden}
   .screen{display:flex;flex-direction:column;height:100vh;height:100dvh;overflow:hidden}
 
-  .top{background:var(--green);color:var(--green-ink);padding:18px 40px 14px;display:flex;align-items:flex-end;justify-content:space-between;gap:22px;flex:none}
-  .tophead{display:flex;align-items:center;gap:22px;min-width:0}
-  .logo{width:84px;height:84px;flex:none;object-fit:contain;background:var(--green-ink);border-radius:50%;padding:5px}
-  .eyebrow{font-family:"Barlow Condensed",sans-serif;font-weight:600;letter-spacing:.12em;text-transform:uppercase;font-size:20px;opacity:.85}
-  .event{font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:26px;opacity:.9;margin-top:1px}
-  .top h1{font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:40px;margin:2px 0 0;line-height:1}
-  .top .right{font-family:"Barlow Condensed",sans-serif;font-size:19px;font-weight:600;text-align:right;opacity:.9;white-space:nowrap}
+  .top{background:var(--green);color:var(--green-ink);padding:calc(18px * var(--hk)) 40px calc(14px * var(--hk));display:flex;align-items:flex-end;justify-content:space-between;gap:22px;flex:none}
+  .tophead{display:flex;align-items:center;gap:calc(22px * var(--hk));min-width:0}
+  .logo{width:calc(84px * var(--hk));height:calc(84px * var(--hk));flex:none;object-fit:contain;background:var(--green-ink);border-radius:50%;padding:5px}
+  .eyebrow{font-family:"Barlow Condensed",sans-serif;font-weight:600;letter-spacing:.12em;text-transform:uppercase;font-size:calc(20px * var(--hk));opacity:.85}
+  .event{font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:calc(26px * var(--hk));opacity:.9;margin-top:1px}
+  .top h1{font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:calc(40px * var(--hk));margin:2px 0 0;line-height:1}
+  .top .right{font-family:"Barlow Condensed",sans-serif;font-size:calc(19px * var(--hk));font-weight:600;text-align:right;opacity:.9;white-space:nowrap}
   .top .right .warn{color:var(--gold-soft)}
+  /* A frozen board must not look live from across the room: a solid gold
+     block, the same size as the date, and the top line stops saying FINAL. */
+  .top .right .stale{background:var(--gold);color:#1B1408;font-weight:700;font-size:calc(26px * var(--hk));padding:4px 14px;border-radius:999px;opacity:1}
 
   /* Said out loud, under the header, because a shaded row alone does not
      explain why one of two equal numbers took the money. */
-  .cards{background:var(--gold-soft);color:var(--gold);flex:none;padding:8px 40px;
-    font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:30px;
+  .cards{background:var(--gold-soft);color:var(--gold);flex:none;padding:calc(8px * var(--hk)) 40px;
+    font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:calc(30px * var(--hk));
     display:flex;align-items:baseline;gap:16px;white-space:nowrap;overflow:hidden}
-  .cards .lab{text-transform:uppercase;letter-spacing:.12em;font-size:21px;opacity:.9}
+  .cards .lab{text-transform:uppercase;letter-spacing:.12em;font-size:calc(21px * var(--hk));opacity:.9}
   .cards .who{color:#7A560F}
-  .cards .why{color:#8A6A2A;font-weight:600;font-size:22px;opacity:.9;overflow:hidden;text-overflow:ellipsis}
+  .cards .why{color:#8A6A2A;font-weight:600;font-size:calc(22px * var(--hk));opacity:.9;overflow:hidden;text-overflow:ellipsis}
   /* same height, nothing drawn: it exists only so the board is the same shape
      with a tie and without one */
-  .cards.spacer{background:transparent;padding-top:8px;padding-bottom:8px}
+  .cards.spacer{background:transparent;padding-top:calc(8px * var(--hk));padding-bottom:calc(8px * var(--hk))}
   .cards.spacer::before{content:" "}
 
   .scroll{flex:1;min-height:0;padding:18px 40px 24px;overflow:hidden}
@@ -97,7 +104,7 @@
   tr.lead td{background:var(--green-soft)}
   tr.lead td.topar,tr.lead td.hn{color:var(--green)}
   tr.blankrow td{border-bottom:0;background:transparent}
-  tr.blankrow td.team::before{content:" "}
+  tr.blankrow td.team::before,tr.blankrow td.who::before{content:" "}
   tr.skin td{background:var(--green-soft)}
   tr.skin td.who{color:var(--green)}
   tr.skin td.hn{font-size:calc(29px * var(--k));color:var(--ink)}
@@ -108,15 +115,21 @@
   .blank .big{font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:52px;line-height:1;color:var(--muted)}
   .blank .sub{font-size:22px;color:var(--muted);max-width:26em}
 
-  /* a small screen still shows the board, one column, for a phone check */
-  @media (max-width:899px){
+  /* a phone still shows the board, one column, for a phone check. Only a
+     phone: it used to switch below 900px wide, so a television browser with
+     a smaller window got a scrolling page nobody can scroll. fit() agrees. */
+  @media (max-width:699px), (orientation:portrait){
     body{overflow:auto}
     .screen{height:auto;min-height:100vh}
     .top{padding:14px 16px 12px}
     .logo{width:52px;height:52px}
     .top h1{font-size:28px}
     .eyebrow{font-size:14px}
-    .top .right{font-size:14px}
+    .event{font-size:16px}
+    .top .right,.top .right .stale{font-size:14px}
+    .cards{font-size:18px;padding:6px 16px}
+    .cards .lab{font-size:13px}
+    .cards .why{font-size:14px}
     .scroll{padding:12px 16px 24px;overflow:visible}
     .grid{grid-template-columns:1fr;gap:18px}
     .col+.col{border-left:0;border-top:6px solid var(--green);padding-left:0;padding-top:14px}
@@ -128,7 +141,7 @@
 </head>
 <body>
 <div class="screen" id="screen"></div>
-<script src="../scoring.js"></script>
+<script src="../scoring.js?v=5666b3c090"></script>
 <script>
 (function(){
   "use strict";
@@ -148,7 +161,7 @@
      row height is the screen divided by the rows on it, so the only way to
      make it bigger is to show fewer at a time. ?rows= and ?secs= override. */
   var TROWS = 13, TSECS = 10;
-  var tpage = 0, ttimer = null;
+  var TICK = 0, ttimer = null;  /* one clock turns the team pages and the skins pages */
   var STALE = 90000;          /* older than this and the top corner says so */
 
   var q = new URLSearchParams(location.search);
@@ -171,6 +184,7 @@
   var LIVE = null;            /* last good payload */
   var lastOK = 0;             /* when it arrived, ms */
   var everFetched = false;
+  var lastErr = false;        /* the last poll failed: a first load says so rather than "No teams yet" */
 
   /* ---------- tiny DOM helper, same shape as the app's ---------- */
   function h(tag, attrs, kids){
@@ -214,10 +228,14 @@
      healthy doing it. SAFE keeps 3% clear because a television crops the edge
      of its picture. Everything here was learned on the points pot board on
      2026-09-12 with Kyle standing in front of the club TV. */
+  function phoneLayout(){ return window.innerWidth < 700 || window.innerHeight > window.innerWidth; }
+  /* Below this the type is too small to read across a room, so instead of
+     shrinking further the board shows fewer rows a page (see paint()). */
+  var KMIN = 0.5;
   function fit(box){
     var root = document.documentElement;
     root.style.setProperty("--k", "1");
-    if (window.innerWidth < 900) return;          /* a phone scrolls, as it should */
+    if (phoneLayout()) return { ok:true };        /* a phone scrolls, as it should */
     var SAFE = Math.max(18, Math.round(window.innerHeight * 0.03));
     var top = box.getBoundingClientRect().top;
     var target = window.innerHeight - SAFE;
@@ -238,36 +256,65 @@
        nobody can settle on, so this is the largest it is ever allowed to be.
        The lever for bigger is fewer teams a page, which is Kyle's setting. */
     var MAXK = 0.78;
-    var lo = 0.4, hi = MAXK, k = 1, guard = 0;
+    var lo = KMIN, hi = MAXK, k = 1, guard = 0;
     function fits(v){
       root.style.setProperty("--k", String(v));
       return lowest() <= target;
     }
-    /* if the page does not fit even at its smallest, take the smallest */
-    if (!fits(lo)) { root.style.setProperty("--k", String(lo)); return; }
+    /* If it does not fit even at the smallest readable size, say which side
+       is too long, so paint() can put fewer rows on a page. A row below the
+       bottom edge is a team, or a skin winner, silently missing. */
+    if (!fits(lo)) {
+      var cols = box.children;
+      return { ok:false,
+               teamsOver: !!cols[0] && cols[0].getBoundingClientRect().bottom > target,
+               skinsOver: !!cols[1] && cols[1].getBoundingClientRect().bottom > target };
+    }
     while (hi - lo > 0.01 && guard++ < 24){
       var mid = (lo + hi) / 2;
       if (fits(mid)) lo = mid; else hi = mid;
     }
     k = lo;
     root.style.setProperty("--k", String(k));
+    return { ok:true, k:k };
   }
 
+  /* A drawing error must never leave the club TV white. It did: a new page
+     beside an old rules file, or one bad card in the feed, and the screen went
+     blank. Now the last board that drew goes back up; the next poll tries again. */
   function render(){
     var s = document.getElementById("screen");
-    s.textContent = "";
+    var old = [].slice.call(s.childNodes || s.children || []);
+    try { paint(s); }
+    catch (e) {
+      try { console.error(e); } catch (x) {}
+      s.textContent = "";
+      old.forEach(function(n){ s.appendChild(n); });
+    }
+  }
 
+  /* how many team rows and skins rows a page holds on THIS screen; worked out
+     again only when something that changes it changes */
+  var layout = { key:"", t:0, s:0 };
+
+  function paint(s){
     if (!LIVE || LIVE.empty || !(LIVE.teams||[]).length){
+      s.textContent = "";
       s.appendChild(head("Mengacci $$ · CCW", "Live board"));
       s.appendChild(h("div",{class:"blank"},[
-        h("div",{class:"big",text: !TV_API ? "Board not connected" : everFetched ? "No teams yet" : "Waiting for the first scores"}),
-        h("div",{class:"sub",text: !TV_API ? "This page has no address to read from." : ""})
+        h("div",{class:"big",text: !TV_API ? "Board not connected" : everFetched ? "No teams yet" : lastErr ? "Can't reach the scores" : "Waiting for the first scores"}),
+        h("div",{class:"sub",text: !TV_API ? "This page has no address to read from." : (!everFetched && lastErr) ? "Trying again every 20 seconds." : ""})
       ]));
       return;
     }
 
     buildRoster(LIVE);
-    var by = LIVE.by || {};
+    /* only a real card counts: one entry with no scores must not take the board down */
+    var by = {};
+    Object.keys(LIVE.by || {}).forEach(function(k){
+      var e = LIVE.by[k];
+      if (e && Array.isArray(e.scores) && e.scores.length === 18) by[k] = e;
+    });
     var ids = Object.keys(by);
     var pend = LIVE.pending || 0;
     var st = Sc.standings(LIVE.teams, by, LIVE.withdrawn || []);
@@ -276,13 +323,6 @@
     var eyebrow = status === "none" ? "No teams yet"
                 : status === "final" ? "FINAL · all " + teamsTotal + " teams reported"
                 : "TENTATIVE · " + teamsIn + " of " + teamsTotal + " teams reported";
-
-    /* left: the tournament, one page at a time */
-    var group = h("colgroup",{},[
-      h("col",{class:"c-rank"}), h("col",{class:"c-team"}),
-      h("col",{class:"c-par"}), h("col",{class:"c-net"})
-    ]);
-    var tt = h("table",{},[group, h("tr",{},[h("th",{text:""}),h("th",{text:"Team"}),h("th",{text:"To par",class:"r"}),h("th",{text:"Net total",class:"r"})])]);
 
     /* Only the winner is shaded. Kyle, 2026-09-12: "We should only shade the
        winner. But somewhere prominent we need to say Won by USGA rules Match
@@ -303,73 +343,127 @@
     });
     var undecided = inseparable.length > 1;
 
+    /* Identical cards share a rank wherever they are on the list, not only at
+       the top; the next team down counts everyone above it. */
+    var rk = [];
+    st.done.forEach(function(x, i){ rk.push(i > 0 && Sc.matchOfCards(st.done[i-1].bb, x.bb).d === 0 ? rk[i-1] : i + 1); });
     var rows = st.done.map(function(x, i){
       return { kind:"done", i:i, x:x,
                lead: undecided ? (i < inseparable.length) : (i === 0),
-               rank: (undecided && i < inseparable.length) ? 1 : i + 1 };
+               rank: rk[i] };
     }).concat(st.waiting.map(function(t){ return { kind:"waiting", t:t }; }));
 
-    var pages = Math.max(1, Math.ceil(rows.length / TROWS));
-    if (tpage >= pages) tpage = 0;
-    var part = rows.slice(tpage * TROWS, tpage * TROWS + TROWS);
-    while (part.length < TROWS && pages > 1) part.push(null);
-
-    part.forEach(function(r){
-      if (!r){
-        tt.appendChild(h("tr",{class:"blankrow"},[
-          h("td",{class:"hn"}), h("td",{class:"team"}), h("td",{class:"n topar"}), h("td",{class:"n"})
-        ]));
-        return;
-      }
-      if (r.kind === "waiting"){
-        tt.appendChild(h("tr",{},[
-          h("td",{class:"hn",text:""}),
-          h("td",{class:"team muted",text:r.t.players.map(first).join(" & ")}),
-          h("td",{colspan:"2"},[h("span",{class:"pill team",text:"Scores not in yet"})])
-        ]));
-        return;
-      }
-      tt.appendChild(h("tr",{class:(r.lead ? "lead" : "")},[
-        h("td",{class:"hn",text:String(r.rank)}),
-        h("td",{class:"team",text:r.x.team.players.map(first).join(" & ")}),
-        h("td",{class:"n topar" + (r.x.total > Sc.PAR.reduce(function(a,b){return a+b;},0) ? " over" : ""),
-          text:Sc.toPar(r.x.total)}),
-        h("td",{class:"n muted",text:String(r.x.total)})
-      ]));
-    });
-
-    /* right: the skins, one block per pot */
+    /* right: the skins, one list per pot */
     var players = ids.map(function(pid){ return by[pid]; });
     var pots = Sc.pots(players, LIVE.cutoff == null ? null : LIVE.cutoff);
-    function potBlock(members, useGross, label){
-      /* The skins table needs its own column definitions too. Without them,
-         table-layout:fixed simply splits the table into equal thirds, which is
-         what put the hole, the name and the score so far apart. */
-      var sg = h("colgroup",{},[
-        h("col",{class:"c-hole"}), h("col",{class:"c-who"}), h("col",{class:"c-score"})
+    var skinLists = (LIVE.cutoff == null
+      ? [{ m:pots.net, g:false, label:"Net skins" }]
+      : [{ m:pots.gross, g:true, label:"Gross skins · hcp " + LIVE.cutoff + " and under" },
+         { m:pots.net, g:false, label:"Net skins · hcp over " + LIVE.cutoff }]
+    ).map(function(p){ p.list = Sc.skins(p.m, p.g).filter(function(r){ return r.kind === "skin"; }); return p; });
+    var maxSkins = Math.max.apply(null, skinLists.map(function(p){ return p.list.length; }));
+
+    var total = Sc.PAR_TOTAL;
+    function draw(rowsT, rowsS){
+      s.textContent = "";
+      /* left: the tournament, one page at a time */
+      var group = h("colgroup",{},[
+        h("col",{class:"c-rank"}), h("col",{class:"c-team"}),
+        h("col",{class:"c-par"}), h("col",{class:"c-net"})
       ]);
-      var t = h("table",{},[sg, h("tr",{},[h("th",{text:"Hole"}),h("th",{text:"Skin",class:"who"}),h("th",{text:useGross?"Gross score":"Net score",class:"c"})])]);
-      var n = 0;
-      Sc.skins(members, useGross).forEach(function(r){
-        if (r.kind !== "skin") return;
-        n++;
-        t.appendChild(h("tr",{class:"skin"},[
-          h("td",{class:"hn",text:String(r.hole)}),
-          h("td",{class:"who",text: player(r.holder) ? player(r.holder).name : "?"}),
-          h("td",{class:"n",text:String(r.score)})
+      var tt = h("table",{},[group, h("tr",{},[h("th",{text:""}),h("th",{text:"Team"}),h("th",{text:"To par",class:"r"}),h("th",{text:"Net total",class:"r"})])]);
+      var pages = Math.max(1, Math.ceil(rows.length / rowsT));
+      var tpage = TICK % pages;
+      var part = rows.slice(tpage * rowsT, tpage * rowsT + rowsT);
+      while (part.length < rowsT && pages > 1) part.push(null);
+
+      part.forEach(function(r){
+        if (!r){
+          tt.appendChild(h("tr",{class:"blankrow"},[
+            h("td",{class:"hn"}), h("td",{class:"team"}), h("td",{class:"n topar"}), h("td",{class:"n"})
+          ]));
+          return;
+        }
+        if (r.kind === "waiting"){
+          tt.appendChild(h("tr",{},[
+            h("td",{class:"hn",text:""}),
+            h("td",{class:"team muted",text:r.t.players.map(first).join(" & ")}),
+            h("td",{colspan:"2"},[h("span",{class:"pill team",text:"Scores not in yet"})])
+          ]));
+          return;
+        }
+        tt.appendChild(h("tr",{class:(r.lead ? "lead" : "")},[
+          h("td",{class:"hn",text:String(r.rank)}),
+          h("td",{class:"team",text:r.x.team.players.map(first).join(" & ")}),
+          h("td",{class:"n topar" + (r.x.total > total ? " over" : ""),
+            text:Sc.toPar(r.x.total)}),
+          h("td",{class:"n muted",text:String(r.x.total)})
         ]));
       });
-      if (!n) t.appendChild(h("tr",{},[h("td",{colspan:"3",class:"muted",text:"No skins yet"})]));
-      var hd = h("div",{class:"sect secthead"},[h("span",{text:label})]);
-      if (status !== "final" && teamsTotal) hd.appendChild(h("span",{class:"pill pend",text:"Not all scores in yet"}));
-      return [hd, t];
-    }
-    var blocks = LIVE.cutoff == null
-      ? potBlock(pots.net, false, "Net skins")
-      : potBlock(pots.gross, true, "Gross skins · hcp " + LIVE.cutoff + " and under")
-          .concat(potBlock(pots.net, false, "Net skins · hcp over " + LIVE.cutoff));
 
-    s.appendChild(head(eyebrow, (LIVE.event && LIVE.event.name) || "Mengacci $$"));
+      function potBlock(p){
+        /* The skins table needs its own column definitions too. Without them,
+           table-layout:fixed simply splits the table into equal thirds, which is
+           what put the hole, the name and the score so far apart. */
+        var sg = h("colgroup",{},[
+          h("col",{class:"c-hole"}), h("col",{class:"c-who"}), h("col",{class:"c-score"})
+        ]);
+        var t = h("table",{},[sg, h("tr",{},[h("th",{text:"Hole"}),h("th",{text:"Skin",class:"who"}),h("th",{text:p.g?"Gross score":"Net score",class:"c"})])]);
+        /* A long skins list turns pages too, on the same clock as the teams,
+           rather than running off the bottom of the screen. */
+        var per = rowsS || p.list.length || 1;
+        var spages = Math.max(1, Math.ceil(p.list.length / per)), sp = TICK % spages;
+        var shown = p.list.slice(sp * per, sp * per + per);
+        shown.forEach(function(r){
+          t.appendChild(h("tr",{class:"skin"},[
+            h("td",{class:"hn",text:String(r.hole)}),
+            h("td",{class:"who",text: player(r.holder) ? player(r.holder).name : "?"}),
+            h("td",{class:"n",text:String(r.score)})
+          ]));
+        });
+        for (var b = shown.length; spages > 1 && b < per; b++)
+          t.appendChild(h("tr",{class:"blankrow"},[h("td",{class:"hn"}), h("td",{class:"who"}), h("td",{class:"n"})]));
+        if (!p.list.length) t.appendChild(h("tr",{},[h("td",{colspan:"3",class:"muted",text:"No skins yet"})]));
+        var hd = h("div",{class:"sect secthead"},[h("span",{text:p.label})]);
+        if (spages > 1) hd.appendChild(h("span",{class:"pill team",text:(sp+1) + " of " + spages}));
+        if (status !== "final" && teamsTotal) hd.appendChild(h("span",{class:"pill pend",text:"Not all scores in yet"}));
+        return [hd, t];
+      }
+      var blocks = [];
+      skinLists.forEach(function(p){ blocks = blocks.concat(potBlock(p)); });
+
+      s.appendChild(head(eyebrow, (LIVE.event && LIVE.event.name) || "Mengacci $$"));
+      band();
+      var grid = h("div",{class:"grid"},[
+        h("div",{class:"col"},[
+          h("div",{class:"sect secthead"},[
+            h("span",{text:"Tournament · 2-man best ball net"}),
+            pages > 1 ? h("span",{class:"pill team",text:(tpage+1) + " of " + pages}) : null
+          ]),
+          tt]),
+        h("div",{class:"col"}, blocks)
+      ]);
+      s.appendChild(h("div",{class:"scroll"},[grid]));
+      return grid;
+    }
+
+    /* Fit this screen. Start from what worked last time; if the board does not
+       fit at the smallest readable type, take a row off whichever side is too
+       long and try again. */
+    var key = [window.innerWidth, window.innerHeight, TROWS, rows.length,
+               skinLists.map(function(p){ return p.list.length; }).join(","),
+               tiedAtTop.length > 1, document.fonts ? document.fonts.status : ""].join("|");
+    if (layout.key !== key) layout = { key:key, t:TROWS, s:0 };
+    for (var tries = 0; tries < 80; tries++){
+      var res = fit(draw(layout.t, layout.s));
+      if (res.ok) break;
+      var changed = false;
+      if (res.skinsOver){ var cur = layout.s || maxSkins; if (cur > 1){ layout.s = cur - 1; changed = true; } }
+      if (res.teamsOver && layout.t > 3){ layout.t--; changed = true; }
+      if (!changed) break;
+    }
+
+    function band(){
     /* The band's height is reserved whether or not there is a tie, so the
        board does not resize itself the moment one appears. */
     if (tiedAtTop.length <= 1){
@@ -395,8 +489,10 @@
             + "the match of cards cannot separate them";
       } else if (m.how && WORD[m.how]) {
         who = nameOf(mine);
+        /* "won" only once it is final: while teams are still out, one of them
+           could beat both, so until then the leader is only ahead */
         why = "level on " + best + " with " + nameOf(other)
-            + " · won on " + WORD[m.how] + ", " + m.av + " to " + m.bv
+            + " · " + (status === "final" ? "won on " : "ahead on ") + WORD[m.how] + ", " + m.av + " to " + m.bv
             + " · USGA match of cards";
       } else {
         who = nameOf(mine);
@@ -408,17 +504,7 @@
         h("span",{class:"why",text: why})
       ]));
     }
-    var grid = h("div",{class:"grid"},[
-      h("div",{class:"col"},[
-        h("div",{class:"sect secthead"},[
-          h("span",{text:"Tournament · 2-man best ball net"}),
-          pages > 1 ? h("span",{class:"pill team",text:(tpage+1) + " of " + pages}) : null
-        ]),
-        tt]),
-      h("div",{class:"col"}, blocks)
-    ]);
-    s.appendChild(h("div",{class:"scroll"},[grid]));
-    fit(grid);
+    }
   }
 
   /* Top right: when the PHONE last sent, not when this page last asked. If our
@@ -453,13 +539,16 @@
   function head(eyebrow, title){
     var age = lastOK ? Date.now() - lastOK : 0;
     var sent = LIVE && (LIVE.received || LIVE.posted) ? clock(Date.parse(LIVE.received || LIVE.posted)) : null;
+    var stale = lastOK && age > STALE;
+    if (stale) eyebrow = "Not updating";      /* never FINAL over a board that has stopped */
     var right = !lastOK ? h("div",{class:"right"},[h("span",{class:"warn",text:"connecting"})])
-      : age > STALE ? h("div",{class:"right"},[h("span",{class:"warn",text:"not updating · scores as of "+(sent||clock(lastOK))})])
+      : stale ? h("div",{class:"right"},[h("span",{class:"stale",text:"not updating · scores as of "+(sent||clock(lastOK))})])
       : h("div",{class:"right",text: sent ? "scores as of "+sent : "updated "+clock(lastOK)});
     return h("div",{class:"top"},[
       h("div",{class:"tophead"},[
-        h("img",{class:"logo",src:"ccw-logo.png",alt:"Country Club of Waterbury",
-          style:"cursor:pointer",onclick:function(){ location.href = "../"; }}),
+        /* no click: h() cannot attach one (it threw), and a TV sent to the
+           app would fall under the app's offline copy */
+        h("img",{class:"logo",src:"ccw-logo.png",alt:"Country Club of Waterbury"}),
         h("div",{},[
           h("div",{class:"eyebrow",text:eyebrow}),
           h("h1",{text:title}),
@@ -475,13 +564,13 @@
     if (!TV_API){ render(); return; }
     var url = TV_API + (TV_API.indexOf("?") >= 0 ? "&" : "?") + "t=" + Date.now();
     fetch(url, { method:"GET", cache:"no-store" })
-      .then(function(r){ return r.json(); })
+      .then(function(r){ if (!r.ok) throw new Error("channel " + r.status); return r.json(); })
       .then(function(data){
-        everFetched = true;
+        everFetched = true; lastErr = false;
         if (data && data.format === "mengacci-live-v1"){ LIVE = data; lastOK = Date.now(); takeSettings(data); }
         render();
       })
-      .catch(function(){ render(); });   /* keep the last good board up */
+      .catch(function(){ lastErr = true; render(); });   /* keep the last good board up */
   }
 
   render();
@@ -490,7 +579,7 @@
   /* turn the page */
   function armPages(){
     if (ttimer) clearInterval(ttimer);
-    ttimer = setInterval(function(){ tpage++; render(); }, TSECS * 1000);
+    ttimer = setInterval(function(){ TICK++; render(); }, TSECS * 1000);
   }
   armPages();
   /* Measure again once the web font has arrived: Barlow Condensed lands after
