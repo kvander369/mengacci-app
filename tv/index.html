@@ -502,6 +502,62 @@
   setTimeout(render, 600);
   setTimeout(render, 2500);
   window.addEventListener("resize", function(){ render(); });
+
+  /* ---------- keep the television awake ----------
+     Copied from the points pot board (mg/index.html), where it kept the club
+     TV on for hours on 2026-09-12. Kyle, 2026-09-13: "the board stayed alive
+     for hours and hours yesterday so it worked. Copy it into Mengacci!"
+
+     A page that looks idle gets put to sleep, so the board says it is in use,
+     two ways, because Silk on a Fire TV is an old Chromium and may have
+     neither:
+
+       1. the Screen Wake Lock API, if it exists, re-taken whenever the tab
+          comes back to the front (a lock is dropped when it is hidden);
+       2. failing that, a tone far below hearing. A device with audio playing
+          is a device in use. It needs a user gesture to start, which the
+          first remote press supplies, so it arms itself on the first key or
+          click and not before.
+
+     Neither is guaranteed on this hardware. It is a nudge, not a promise, and
+     the TV's own energy saver is a separate setting on the TV. */
+  function keepAwake(){
+    var lock = null;
+    function take(){
+      try{
+        if(navigator.wakeLock && navigator.wakeLock.request){
+          navigator.wakeLock.request("screen").then(function(l){
+            lock = l;
+            l.addEventListener("release", function(){ lock = null; });
+          }).catch(function(){});
+        }
+      }catch(e){}
+    }
+    take();
+    document.addEventListener("visibilitychange", function(){
+      if(!document.hidden && !lock) take();
+    });
+
+    var ctx = null;
+    function tone(){
+      if(ctx) { if(ctx.state === "suspended") ctx.resume(); return; }
+      try{
+        var AC = window.AudioContext || window.webkitAudioContext;
+        if(!AC) return;
+        ctx = new AC();
+        var osc = ctx.createOscillator(), gain = ctx.createGain();
+        osc.frequency.value = 60;          /* low, and at this gain inaudible */
+        gain.gain.value = 0.0008;
+        osc.connect(gain); gain.connect(ctx.destination);
+        osc.start();
+      }catch(e){ ctx = null; }
+    }
+    ["keydown","click","touchstart","mousemove"].forEach(function(ev){
+      document.addEventListener(ev, tone, {once:false, passive:true});
+    });
+    document.addEventListener("visibilitychange", function(){ if(!document.hidden) tone(); });
+  }
+  keepAwake();
 })();
 </script>
 </body>
