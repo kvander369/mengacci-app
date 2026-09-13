@@ -570,7 +570,8 @@
 
   /* ---------- the skins money: Kyle's screen only, never the board ----------
      Pot ÷ number of skins (RULES.md), from verified teams only. Shown to the
-     cent, rounded down; any cent left over is said out loud, because who gets
+     cent, rounded down; the cents left over go to the house (Kyle, 2026-09-13:
+     "Unwanted cents come back to the house (me)"), and it is said which, because who gets
      it is still Kyle's to decide, and so is an unwon pot. */
   function dollars(v){ return "$"+(Math.floor(v*100+1e-6)/100).toFixed(2).replace(/\.00$/,""); }
   function skinsMoney(){
@@ -586,7 +587,7 @@
       if(!(amt>0)){ out.push(h("div",{class:"note",text:p.label+": no amount typed on Setup."})); return; }
       if(!rows.length){ out.push(h("div",{class:"note",text:p.label+" "+dollars(amt)+" · no skins won · where it goes is still open"})); return; }
       var per=Sc.payout(amt, rows), each=Math.floor(per*100+1e-6), left=Math.round(amt*100)-each*rows.length;
-      out.push(h("div",{class:"note",text:p.label+" "+dollars(amt)+" · "+rows.length+" skin"+(rows.length>1?"s":"")+" · "+dollars(each/100)+" a skin"+(left?" · "+left+"¢ left over":"")}));
+      out.push(h("div",{class:"note",text:p.label+" "+dollars(amt)+" · "+rows.length+" skin"+(rows.length>1?"s":"")+" · "+dollars(each/100)+" a skin"+(left?" · "+left+"¢ to the house":"")}));
       var won={}, order=[];
       rows.forEach(function(r){ if(!won[r.holder]){ won[r.holder]=[]; order.push(r.holder); } won[r.holder].push(r.hole); });
       order.forEach(function(pid){ box.appendChild(h("div",{class:"item"},[
