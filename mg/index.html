@@ -568,8 +568,13 @@
       h("label",{text:"Sunday money — whole dollars",style:"margin-top:12px"}),
       h("input",{type:"number",inputmode:"numeric",min:"0",step:"1",value:(getSun()?String(getSun()):""),placeholder:"e.g. 500",
         onchange:function(){ setSun(this.value); renderEntry(); }}),
-      h("label",{text:"TV board — show the money",style:"margin-top:12px"}),
-      choiceButtons([false, true], getFinal(), function(v){ setFinal(v); renderEntry(); },
+      /* This one sends as it is tapped. Kyle, 2026-09-13: "Seems redundant to
+         have two buttons one for Final and One for Send to TV", then "Yes
+         combine them". Forgetting to send at the end of a long day is likelier
+         than a stray tap, and a stray tap is undone by tapping Not yet, which
+         sends too. */
+      h("label",{text:"TV board — show the money (sends to the TV as you tap)",style:"margin-top:12px"}),
+      choiceButtons([false, true], getFinal(), function(v){ setFinal(v); renderEntry(); post(); },
         function(v){ return v ? "Final — show it" : "Not yet"; }),
       h("div",{class:"note",style:"padding:8px 0 0",
         text:"These reach the club screen the next time you Send to TV."})
