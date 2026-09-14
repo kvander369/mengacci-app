@@ -137,6 +137,8 @@
     td.team,td.who{font-size:20px}
     td.topar{font-size:24px}
   }
+  /* the answer to "did the club TV take the reload?" (Kyle, 2026-09-14) */
+  .stamp{position:fixed;right:10px;bottom:6px;font-size:13px;color:var(--muted);opacity:.7;pointer-events:none}
 </style>
 </head>
 <body>
@@ -181,6 +183,7 @@
     return changed;
   }
 
+  var BOARD_VERSION = "board v2";   /* bumped when this page changes; shown bottom right */
   var LIVE = null;            /* last good payload */
   var lastOK = 0;             /* when it arrived, ms */
   var everFetched = false;
@@ -286,7 +289,7 @@
   function render(){
     var s = document.getElementById("screen");
     var old = [].slice.call(s.childNodes || s.children || []);
-    try { paint(s); }
+    try { paint(s); s.appendChild(h("div",{class:"stamp",text:BOARD_VERSION})); }
     catch (e) {
       try { console.error(e); } catch (x) {}
       s.textContent = "";
