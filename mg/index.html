@@ -192,7 +192,7 @@
 </head>
 <body>
 <div class="screen" id="screen"></div>
-<script src="points.js?v=2b28e832fd"></script>
+<script src="points.js?v=2f7a0422bb"></script>
 <script src="record.js?v=35df223091"></script>
 <script>
 (function(){
@@ -298,7 +298,7 @@
   /* Which version this page is: shown small on the board and in Setup, and
      in the tab title, so "did the club TV take the reload?" has an answer
      (Fable's review, 2026-09-13). Bump it when the page changes. */
-  var MG_VERSION = "v2.1";
+  var MG_VERSION = "v2.2";
   var q = new URLSearchParams(location.search);
   if (q.get("api")) MG_API = q.get("api");
   var ENTRY = q.get("enter") === "1";
@@ -446,6 +446,10 @@
        then more pages, never a team off the bottom (see fit) */
     var PER = Math.min(ROWS, rowCap);
     var pagesFor = Math.max(1, Math.ceil(TEAMS.length / PER));
+    /* wrap the page number HERE, before the counter is drawn: wrapped only
+       further down, the top band read "6 of 5" once every rotation (Fable's
+       review, 2026-09-14) */
+    if(page >= pagesFor) page = 0;
     /* A part-entered match must say so. "After match 3 of 5" with 12 of 25 in
        makes the other 13 look like they are losing when they simply are not on
        the sheet yet. Show what is in, and show what is still out. */
@@ -620,7 +624,7 @@
       var NB = " ";
       if(!r) return h("tr",{class:"blankrow"}, spec.map(function(c){ return h("td",{class:c[0],text:NB}); }));
       var cells = [
-        h("td",{class:"pos",text:String(r.rank)}),
+        h("td",{class:"pos",text:r.rank === null ? "–" : String(r.rank)}),   /* no score yet: no place */
         h("td",{class:"team",text:r.name})
       ];
       r.rounds.forEach(function(v){
@@ -653,7 +657,7 @@
     scr.appendChild(h("div",{class:"bar"},[
       h("button",{class:"ghost",text:(empty() ? "Get from TV" : "Board"),
         onclick:function(){ if(empty()) grab(); else location.href="./"; }}),
-      h("button",{text:"Send to TV",onclick:post})
+      h("button",{text:"Send to TV",onclick:function(){ post(); }})
     ]));
   }
 
@@ -745,7 +749,11 @@
      Kyle, 2026-09-13: "If the money doesnt match don't let me even show it on
      the tv!" Not yet always goes through. */
   function tapFinal(v){
-    function go(){ setFinal(v); SETUP = localSetup(); renderEntry(); post(); }
+    /* Final is saved on this phone only once the TV has it. Saved first and
+       sent second, a failed send (no signal, no key) left the button lit and
+       the next plain Send to TV carried Final unannounced (Fable's review,
+       2026-09-14). */
+    function go(){ post({ final:v, done:function(sent){ if(sent) setFinal(v); SETUP = localSetup(); renderEntry(); } }); }
     var c = Pts.purse(teamCount(), localSetup()), bad = Pts.moneyProblems(teamCount(), localSetup());
     if(v && bad.length){
       confirmSheet(c.diff !== 0 ? "The money doesn't add up" : "The money isn't right",
@@ -1163,10 +1171,16 @@
     };
   }
   var sendEmpty = false, posting = false;
-  function post(){
+  /* opts.final overrides what is sent as Final; opts.done(sent) is told whether
+     the TV took it. A send refused before it starts calls nothing, and nothing
+     on this phone changes then either. */
+  function post(opts){
+    opts = (opts && typeof opts === "object" && ("final" in opts || "done" in opts)) ? opts : {};
+    var done = typeof opts.done === "function" ? opts.done : function(){};
     if(!MG_API){ flash("No TV address set yet"); return; }
     if(!getKey()){ flash("Type the TV key first"); return; }
     var round = roundToSend();
+    if("final" in opts) round.final = !!opts.final;
     /* An emptied phone never sends: the channel is the only copy of the event,
        and one tap wiped a live 25-team board in Fable's review (2026-09-13).
        Clearing the teams on purpose (Start a new tournament) gets one send. */
@@ -1182,19 +1196,30 @@
       headers:{"Content-Type":"text/plain;charset=utf-8"},
       body: JSON.stringify({ key:getKey(), board:"vtp", round:round })
     }).then(function(r){ return r.json(); })
-      .then(function(j){ if(j && j.ok){ sendEmpty = false; flash("Sent to TV ✓ " + clock(Date.now())); } else flash("Not sent: " + ((j&&j.error)||"?")); })
-      .catch(function(e){ flash("Not sent: " + (e && e.name === "AbortError" ? "no answer" : e.message)); })
+      .then(function(j){ if(j && j.ok){ sendEmpty = false; flash("Sent to TV ✓ " + clock(Date.now())); done(true); } else { flash("Not sent: " + ((j&&j.error)||"?")); done(false); } })
+      .catch(function(e){ flash("Not sent: " + (e && e.name === "AbortError" ? "no answer" : e.message)); done(false); })
       .then(function(){ posting = false; if(timer) clearTimeout(timer); });
   }
   function flash(m){ postState = m; var t = document.querySelector(".top .right"); if(t) t.lastChild.textContent = m; }
 
+  /* One ask at a time, with a clock on it. Asked every 20 s regardless, a slow
+     old answer could land after a newer one and put the old scores back on the
+     screen (Fable's review, 2026-09-14); and an answer the script stamped
+     earlier than the one on the screen is never taken. */
+  var pulling = false, lastReceived = "";
   function pull(){
     if(!MG_API) return;
-    fetch(MG_API + (MG_API.indexOf("?")>=0?"&":"?") + "board=vtp&t=" + Date.now())
+    if(pulling) return;
+    pulling = true;
+    var ctl = (typeof AbortController !== "undefined") ? new AbortController() : null;
+    var timer = ctl ? setTimeout(function(){ ctl.abort(); }, 15000) : null;
+    fetch(MG_API + (MG_API.indexOf("?")>=0?"&":"?") + "board=vtp&t=" + Date.now(), { signal: ctl ? ctl.signal : undefined })
       .then(function(r){ return r.json(); })
       .then(function(j){
         everFetched = true;
         if(j && j.format === "vtp-live-v1" && Array.isArray(j.points)){
+          if(j.received && lastReceived && j.received < lastReceived) return;   /* older than the screen */
+          if(j.received) lastReceived = j.received;
           /* The teams, scores and set-up are the channel's. A payload from
              before the Teams tab has no usable teams list of its own length,
              and keeps the list this page starts with. */
@@ -1219,7 +1244,8 @@
           if(changed || j.posted !== lastPosted){ lastPosted = j.posted || ""; page = 0; renderBoard(); }
         } else if(j && j.empty && !lastPosted){ renderBoard(); }
       })
-      .catch(function(){ everFetched = true; });
+      .catch(function(){ everFetched = true; })
+      .then(function(){ pulling = false; if(timer) clearTimeout(timer); });
   }
 
   /* Re-armed whenever the phone changes the rotation. One timer turns the

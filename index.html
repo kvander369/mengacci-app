@@ -752,7 +752,11 @@
       try{ tvFetch(SB_API, { method:"POST", headers:{"Content-Type":"text/plain;charset=utf-8"}, body:JSON.stringify({ key:TV.key, action:"process" }) }).catch(function(){}); }catch(e){}
       /* the card may have been parked or cancelled while the photos went up:
          then the read rides on the parked draft and is polled once it is saved */
-      if(S.draft===d) saveCard("provisional","Waiting for ScannerBot", d.s1, d.hcp1);
+      /* ...and only if Kyle is still on the check screen: had he tapped "I type
+         it again" while the photos went up, filing the card here threw his
+         second read away (Fable's review, 2026-09-14). Otherwise the read stays
+         on the draft and rides onto the card he saves. */
+      if(S.draft===d && d.step==="verify" && d.pass===1) saveCard("provisional","Waiting for ScannerBot", d.s1, d.hcp1);
       else save();
     }).catch(function(e){
       d.sbBusy=false; d.error="ScannerBot could not take the photos ("+(e && e.message ? e.message : tvWhy(e))+"). Check it another way, or try again."; if(S.draft===d) render(); else save();
@@ -1510,7 +1514,7 @@
      the offline copy's version, so Kyle's phone said v10 while the v9 screen was
      still running and still said "random order" (2026-09-13). test/walk.js
      fails if this and CACHE in sw.js ever differ. */
-  var APP_VERSION = "mengacci-v15";
+  var APP_VERSION = "mengacci-v16";
   var versionText="not installed", swVersion=null;
   function showVersion(){
     var el=document.getElementById("stamp"); if(!el) return;

@@ -561,17 +561,35 @@
   }
 
   /* ---------- the poll: never blank the board on a failure ---------- */
+  /* One ask at a time, with a clock on it: asked every 20 s regardless, a slow
+     old answer could land after a newer one and put the old scores back on the
+     screen (Fable's review, 2026-09-14). Two more things are never taken once a
+     round is on the screen: an answer the script stamped earlier than it, and
+     the script's "empty" answer (a lost or recreated Drive file), which drew
+     "No teams yet" over a live round with a fresh clock. Ignored, the clock
+     ages and the board says NOT UPDATING, which is the truth. */
+  var polling = false;
   function poll(){
     if (!TV_API){ render(); return; }
+    if (polling) return;
+    polling = true;
+    var ctl = (typeof AbortController !== "undefined") ? new AbortController() : null;
+    var timer = ctl ? setTimeout(function(){ ctl.abort(); }, 15000) : null;
     var url = TV_API + (TV_API.indexOf("?") >= 0 ? "&" : "?") + "t=" + Date.now();
-    fetch(url, { method:"GET", cache:"no-store" })
+    fetch(url, { method:"GET", cache:"no-store", signal: ctl ? ctl.signal : undefined })
       .then(function(r){ if (!r.ok) throw new Error("channel " + r.status); return r.json(); })
       .then(function(data){
         everFetched = true; lastErr = false;
-        if (data && data.format === "mengacci-live-v1"){ LIVE = data; lastOK = Date.now(); takeSettings(data); }
+        if (data && data.format === "mengacci-live-v1"){
+          var holds = !!(LIVE && Array.isArray(LIVE.teams));
+          if (data.empty || !Array.isArray(data.teams)){ if (!holds){ LIVE = data; lastOK = Date.now(); } }
+          else if (holds && LIVE.received && data.received && data.received < LIVE.received){ /* older than the screen */ }
+          else { LIVE = data; lastOK = Date.now(); takeSettings(data); }
+        }
         render();
       })
-      .catch(function(){ lastErr = true; render(); });   /* keep the last good board up */
+      .catch(function(){ lastErr = true; render(); })   /* keep the last good board up */
+      .then(function(){ polling = false; if (timer) clearTimeout(timer); });
   }
 
   render();

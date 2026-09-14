@@ -227,7 +227,15 @@
         sunday: sum(r, SUN), sundayPlayed: counted(r, SUN)
       };
     });
-    var byTotal = rankBy(list, 'total');
+    /* A team with nothing entered at all sums to 0, which outranked a team on
+       -3 that had actually played (Fable's review, 2026-09-14). So the main
+       pot, like the second pot, is ranked among the teams that have a score:
+       a team with none has no rank, no place and no money, and sits at the
+       bottom of the list. A presence check, never a points check. */
+    var inPlay = list.filter(function (r) { return r.played > 0; });
+    var idle = list.filter(function (r) { return !(r.played > 0); });
+    idle.forEach(function (r) { r.rank = null; });
+    var byTotal = rankBy(inPlay, 'total').concat(idle);
 
     /* Anyone standing in a paid place of the main pot — ties included, because
        a tie that reaches a paid place is paid — is out of the second pot. They
@@ -246,9 +254,9 @@
     var prizes = Array.isArray(opts.prizes) ? opts.prizes.map(money) : null;
     if (prizes && !prizes.some(function (m) { return m > 0; })) prizes = null;
     var sizes = {};
-    list.forEach(function (r) { sizes[r.total] = (sizes[r.total] || 0) + 1; });
+    inPlay.forEach(function (r) { sizes[r.total] = (sizes[r.total] || 0) + 1; });
     list.forEach(function (r) {
-      var paid = r.rank <= N;
+      var paid = r.rank !== null && r.rank <= N;
       if (paid && prizes) {
         var got = 0;
         for (var p = r.rank; p <= Math.min(N, r.rank + sizes[r.total] - 1); p++) got += prizes[p - 1] || 0;
@@ -281,7 +289,8 @@
   function payout(list, cfg) {
     cfg = cfg || {};
     var N = places(cfg.places), prizes = (cfg.prizes || []).map(money);
-    var order = list.slice().sort(function (a, b) { return b.total - a.total; });
+    /* only teams with a score are in the running (see standings) */
+    var order = list.filter(function (r) { return r.played > 0; }).sort(function (a, b) { return b.total - a.total; });
     var main = [], byTeam = {}, i = 0;
     while (i < order.length) {
       var j = i;
