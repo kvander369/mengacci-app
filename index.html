@@ -450,6 +450,10 @@
            morning, right after New round · keep the teams — checker, 2026-09-13),
            and a cleared phone gets one send so the TV clears too. */
         tvState.hold=null; tvState.checked=true; tvState.sendEmpty=!keepTeams; tvState.sig="";
+        /* ...and saved with the round: closed inside the 5 s before the first send,
+           a reopened phone forgot and was held by the TV's old round until two real
+           teams were in (Fable's review, 2026-09-14). tvAdopt() reads it back. */
+        S.tvFresh={ sendEmpty:!keepTeams };
         render(); };
       kids.push(h("div",{class:"check bad"},[ h("div",{class:"t",text:"Start a new round? Every score and card photo is cleared, and the pots and places are reset. The roster stays. Back up this round first if you want its files."}),
         h("button",{class:"btn danger sm",text:"New round · keep the teams",onclick:function(){ newRound(true); }}),
@@ -601,7 +605,7 @@
           pl.appendChild(h("div",{class:"item"},[ h("div",{class:"name",text:fullName(p)}), t?h("span",{class:"pill team",text:"Team "+(S.teams.indexOf(t)+1)}):null ]));
         } else if(S.confirmDel===p.id){
           pl.appendChild(h("div",{class:"item"},[ h("div",{class:"name",text:"Delete "+fullName(p)+"?"}),
-            h("button",{class:"btn danger sm",style:"width:auto",text:"Delete",onclick:function(){ S.people=S.people.filter(function(q2){return q2.id!==p.id;}); S.confirmDel=null; render(); }}),
+            h("button",{class:"btn danger sm",style:"width:auto",text:"Delete",onclick:function(){ S.people=S.people.filter(function(q2){return q2.id!==p.id;}); if(S.pickA===p.id) S.pickA=null; /* no ghost in the next team (Fable's review, 2026-09-14) */ S.confirmDel=null; render(); }}),
             h("button",{class:"btn quiet sm",style:"width:auto",text:"Keep",onclick:function(){ S.confirmDel=null; render(); }}) ]));
         } else {
           pl.appendChild(h("div",{class:"item"},[
@@ -939,7 +943,7 @@
     S.nextPerson=1+S.people.reduce(function(m,p){ return Math.max(m, Number(p.id)||0); },0);
     S.nextTeam=1+S.teams.reduce(function(m,t){ return Math.max(m, parseInt(String(t.id).replace(/\D/g,""),10)||0); },0);
     S.restoreNote="Brought back from the "+from+": "+S.teams.length+" teams, "+S.cards.length+" saved. "+(from==="TV"?"Type the pot amounts again; the TV never carries money.":"");
-    tvState.hold=null; tvState.checked=true;
+    tvState.hold=null; tvState.checked=true; S.tvFresh={ sendEmpty:false };
     S.view="setup"; render();
   }
   /* The TV holds only verified scores, so each team whose two players are in
@@ -1433,8 +1437,12 @@
   }
   function tvWhy(e){ return e && e.http ? e.message : e && e.name==="AbortError" ? "no answer" : "no signal"; }
 
+  /* a round Kyle started or brought back on purpose is believed over the TV,
+     across a close and reopen, until its first send lands */
+  function tvAdopt(){ if(S.tvFresh){ tvState.checked=true; tvState.hold=null; if(S.tvFresh.sendEmpty) tvState.sendEmpty=true; } }
   function tvPost(force){
     if(!TV.api || !TV.key || tvState.busy) return;
+    tvAdopt();
     if(!S.teams.length && !tvState.sendEmpty) return;              /* an empty phone never sends: it would wipe the TV */
     var p=tvPayload(), sig=tvSig(p);
     if(!force && sig===tvState.sig && !tvState.error && !tvState.hold) return;   /* nothing new to say */
@@ -1464,7 +1472,7 @@
                       body:JSON.stringify({ key:TV.key, round:p }) })
         .then(function(res){
           tvState.busy=false;
-          if(res && res.ok){ setTimeout(tvRepaint, 8200); tvState.sig=sig; tvState.sent=now(); tvState.sentAt=Date.now(); tvState.error=null; tvState.tries=0; tvState.next=0; tvState.sendEmpty=false; }
+          if(res && res.ok){ setTimeout(tvRepaint, 8200); tvState.sig=sig; tvState.sent=now(); tvState.sentAt=Date.now(); tvState.error=null; tvState.tries=0; tvState.next=0; tvState.sendEmpty=false; if(S.tvFresh){ S.tvFresh=null; save(); } }
           else { tvFailed((res && res.error) || "refused"); }
           tvRepaint();
         });
@@ -1488,6 +1496,7 @@
   function tvStatus(){
     if(!TV.api) return "not connected";
     if(!TV.key) return "no key yet";
+    tvAdopt();
     if(tvState.hold) return "waiting: the TV holds a bigger round";
     if(!S.teams.length && !tvState.sendEmpty) return "nothing to send yet";
     if(tvState.busy) return "sending…";
@@ -1518,7 +1527,7 @@
      the offline copy's version, so Kyle's phone said v10 while the v9 screen was
      still running and still said "random order" (2026-09-13). test/walk.js
      fails if this and CACHE in sw.js ever differ. */
-  var APP_VERSION = "mengacci-v17";
+  var APP_VERSION = "mengacci-v18";
   var versionText="not installed", swVersion=null;
   function showVersion(){
     var el=document.getElementById("stamp"); if(!el) return;
