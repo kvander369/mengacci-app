@@ -414,6 +414,7 @@
         case "diff":  return renderDiff();
         case "confirm":return renderConfirm();
         case "sbpick":return renderSbPick();
+        case "sbpickback":return renderSbPickBack();
         default: d.step="holes"; d.armed=null; return renderHoles();
       }
     }
@@ -841,8 +842,14 @@
          someone else's back nine on this player. Then a back row is taken
          only by name, and otherwise the back nine is unread and said so
          (ScannerBot seat, 2026-09-14; the same rule as its own verify screen). */
+      /* A back-nine photo never carries a name (Kyle, 2026-09-14), so with the
+         counts apart the row is Kyle's to pick, from the scores, against the
+         card in his hand (renderSbPickBack) — the same "never guess, ask" as the
+         front nine. A name match is taken when there is one. */
       var fr=front[i], br=null;
-      if(back.length===front.length) br=back[i]||null;
+      d.sbBack=d.sbBack||{}; d.sbBackSkip=d.sbBackSkip||{};
+      if(d.sbBack[pid]!=null) br=back[d.sbBack[pid]]||null;
+      else if(back.length===front.length) br=back[i]||null;
       else { var p=person(pid), j=p?sbMatchRow(p, back):-1; if(j>=0) br=back[j]; }
       var holes=sbHoles(fr).concat(br ? sbHoles(br) : d.s1[pid].slice(9).map(function(v){ return v===NONE?null:v; }));
       d.s2[pid]=holes;
@@ -851,7 +858,15 @@
       if(fr && typeof fr.handicap==="number") d.hcp2[pid]=fr.handicap; else { d.hcp2[pid]=d.hcp1[pid]; unread.push("handicap"); }
       if(unread.length) d.sbUnread[pid]=unread;
     });
-    d.step = d.players.every(function(pid){ return d.s2[pid]; }) ? "diff" : "sbpick";
+    d.step = !d.players.every(function(pid){ return d.s2[pid]; }) ? "sbpick" : sbBackToPick(d, front, back)!=null ? "sbpickback" : "diff";
+  }
+  /* the first player whose back nine could not be lined up and has not been
+     picked or passed over by Kyle; null when there is nothing to ask */
+  function sbBackToPick(d, front, back){
+    if(back.length===front.length || !back.length) return null;
+    var out=null;
+    d.players.forEach(function(pid){ if(out==null && d.s2[pid] && d.sbUnread[pid] && d.sbUnread[pid].indexOf("back nine")>=0 && !(d.sbBackSkip&&d.sbBackSkip[pid])) out=pid; });
+    return out;
   }
   function sbUnreadNote(){
     var d=S.draft, lines=[];
@@ -877,6 +892,29 @@
     });
     kids.push(list);
     kids.push(h("button",{class:"btn quiet sm",text:"Not on the card · check another way",onclick:function(){ S.draft=null; photoURL={}; S.view="home"; render(); }}));
+    kids.push(footer());
+    paint(top("ScannerBot","Which row?"), kids, null, "pass2");
+  }
+
+  /* the back nine when the halves read different row counts: Kyle lines a row
+     up with the card by its scores, since no name is on that photo */
+  function renderSbPickBack(){
+    var d=S.draft, c=null; S.cards.forEach(function(x){ if(x.id===d.id) c=x; });
+    var front=(c&&c.sb&&c.sb.cards&&c.sb.cards.f.players)||[], back=(c&&c.sb&&c.sb.cards&&c.sb.cards.b.players)||[], kids=[];
+    var pid=sbBackToPick(d, front, back);
+    if(pid==null){ d.step="diff"; return render(); }
+    kids.push(h("div",{class:"big",text:"Which row is "+personName(pid)+"'s back nine?"}));
+    kids.push(h("div",{class:"note",text:"ScannerBot read "+back.length+(back.length===1?" row":" rows")+" on the back nine but "+front.length+" on the front, so they cannot be lined up by position, and the back photo carries no names. Tap the row that matches the card."}));
+    var list=h("div",{class:"list"});
+    back.forEach(function(r,i){
+      var taken=d.players.some(function(p){ return p!==pid && d.sbBack[p]===i; });
+      var cells=sbHoles(r).map(function(v){ return v==null?"?":String(v); }).join(" ");
+      list.appendChild(h("button",{class:"pick"+(taken?" done":""),disabled:taken,onclick:function(){ d.sbBack[pid]=i; sbFill(); render(); }},[
+        h("span",{class:"name",text:cells}),
+        h("span",{class:"pill team",text:"in "+(typeof r.computed_sum==="number"?r.computed_sum:"?")}) ]));
+    });
+    kids.push(list);
+    kids.push(h("button",{class:"btn quiet sm",text:"Not there · leave "+first(pid)+"'s back nine unchecked",onclick:function(){ d.sbBackSkip[pid]=true; sbFill(); render(); }}));
     kids.push(footer());
     paint(top("ScannerBot","Which row?"), kids, null, "pass2");
   }
@@ -1536,7 +1574,7 @@
      the offline copy's version, so Kyle's phone said v10 while the v9 screen was
      still running and still said "random order" (2026-09-13). test/walk.js
      fails if this and CACHE in sw.js ever differ. */
-  var APP_VERSION = "mengacci-v19";
+  var APP_VERSION = "mengacci-v20";
   var versionText="not installed", swVersion=null;
   function showVersion(){
     var el=document.getElementById("stamp"); if(!el) return;
