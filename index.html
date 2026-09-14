@@ -673,7 +673,7 @@
       var how=c.method||"?";
       if(c.status==="confirmed") right=h("span",{class:"pill ok",text:"Verified"});
       else if(S.parked.some(function(p){ return p.id===c.id; })) right=h("span",{class:"pill pend",text:"Check parked"});
-      else if(c.sb && c.sb.done) right=h("button",{class:"btn gold sm",style:"width:auto;padding:8px 10px;font-size:15px",text:"See what ScannerBot read",onclick:function(){ sbCompare(c); }});
+      else if(c.sb && c.sb.done){ how="ScannerBot has read it"; right=h("button",{class:"btn gold sm",style:"width:auto;padding:8px 10px;font-size:15px",text:"See what ScannerBot read",onclick:function(){ sbCompare(c); }}); }
       else {
         if(c.sb && c.sb.failed) how="ScannerBot: "+c.sb.failed;
         else if(c.sb) how="ScannerBot is reading it · "+Math.max(0,Math.round((Date.now()-c.sb.sent)/60000))+" min";
@@ -714,24 +714,48 @@
   var SB_API = "https://script.google.com/macros/s/AKfycbw87DLlnChiLiD7RxkP0ZxWYDzSJ4acvl-t9ugKX16niSvNQkmsHNbYXfjE844R6HMa/exec";
   var SB_WAIT_MIN = 20;   /* give up asking after this many minutes */
   function toB64(blob){ return new Promise(function(res,rej){ var r=new FileReader(); r.onload=function(){ var s=String(r.result); res(s.slice(s.indexOf(",")+1)); }; r.onerror=function(){ rej(new Error("could not read the photo")); }; r.readAsDataURL(blob); }); }
+  /* A camera photo is 3-4 MB; two of them, base64, is 10 MB up a clubhouse
+     signal. Shrink to 1600 px on the long side first (a tenth of the size, and
+     the reader downsamples anyway). Anything that fails falls back to the
+     original photo, so a browser without a canvas still sends. */
+  function shrinkPhoto(blob){
+    return new Promise(function(res){
+      try{
+        if(typeof createImageBitmap!=="function" || typeof document.createElement!=="function") return res(blob);
+        createImageBitmap(blob).then(function(bm){
+          var W=bm.width, H=bm.height, L=1600, s=Math.min(1, L/Math.max(W,H));
+          if(s>=1){ res(blob); return; }
+          var c=document.createElement("canvas"); c.width=Math.round(W*s); c.height=Math.round(H*s);
+          c.getContext("2d").drawImage(bm, 0, 0, c.width, c.height);
+          c.toBlob(function(b){ res(b||blob); }, "image/jpeg", 0.85);
+        }).catch(function(){ res(blob); });
+      }catch(e){ res(blob); }
+    });
+  }
   function sbSend(d){
     d.sbBusy=true; d.error=null; render();
     Promise.all([getPhoto(d.id+"-f"), getPhoto(d.id+"-b")]).then(function(blobs){
       if(!blobs[0] || !blobs[1]) throw new Error("the photos are not on this phone any more");
+      return Promise.all(blobs.map(shrinkPhoto));
+    }).then(function(blobs){
       return Promise.all(blobs.map(toB64)).then(function(b64s){
+        /* 90 s, not the TV channel's 20: this is a photo upload, not a scoreline */
         return tvFetch(SB_API, { method:"POST", headers:{"Content-Type":"text/plain;charset=utf-8"},
           body:JSON.stringify({ key:TV.key, action:"upload", course:"mengacci", rigor:1,
-            photos:b64s.map(function(b,i){ return {b64:b, mime:(blobs[i].type==="image/png"?"image/png":"image/jpeg")}; }) }) });
+            photos:b64s.map(function(b,i){ return {b64:b, mime:(blobs[i].type==="image/png"?"image/png":"image/jpeg")}; }) }) }, 90000);
       });
     }).then(function(res){
       if(!res || !res.ok || !res.bases || res.bases.length!==2) throw new Error((res && res.error) || "ScannerBot refused");
       d.sbBusy=false;
-      d.sb={bases:res.bases.slice(), sent:Date.now(), done:false, cards:null, failed:null};
+      d.sb={bases:res.bases.slice(), sent:Date.now(), polls:0, done:false, cards:null, failed:null};
       /* one processing pass now rather than at the next minute; the answer is not waited for */
       try{ tvFetch(SB_API, { method:"POST", headers:{"Content-Type":"text/plain;charset=utf-8"}, body:JSON.stringify({ key:TV.key, action:"process" }) }).catch(function(){}); }catch(e){}
-      saveCard("provisional","Waiting for ScannerBot", d.s1, d.hcp1);
+      /* the card may have been parked or cancelled while the photos went up:
+         then the read rides on the parked draft and is polled once it is saved */
+      if(S.draft===d) saveCard("provisional","Waiting for ScannerBot", d.s1, d.hcp1);
+      else save();
     }).catch(function(e){
-      d.sbBusy=false; d.error="ScannerBot could not take the photos ("+(e && e.message ? e.message : tvWhy(e))+"). Check it another way, or try again."; render();
+      d.sbBusy=false; d.error="ScannerBot could not take the photos ("+(e && e.message ? e.message : tvWhy(e))+"). Check it another way, or try again."; if(S.draft===d) render(); else save();
     });
   }
   /* every 20 s: ask after the cards ScannerBot is still reading */
@@ -744,12 +768,17 @@
     var chain=Promise.resolve();
     waiting.forEach(function(c){
       chain=chain.then(function(){
-        if(Date.now()-c.sb.sent > SB_WAIT_MIN*60000){ c.sb.failed="no answer in "+SB_WAIT_MIN+" minutes"; return; }
-        return Promise.all(c.sb.bases.map(function(b){ return tvFetch(SB_API+"?card="+encodeURIComponent(b)+"&t="+Date.now(), {method:"GET"}); }))
-          .then(function(rs){
-            if(!rs.every(function(r){ return r && r.ok && r.done; })) return;   /* still reading */
-            var bad=rs.filter(function(r){ return !r.card || !(r.card.players||[]).length; });
-            if(bad.length){ c.sb.failed="could not read the "+(rs[0]===bad[0]?"front":"back")+" nine"+(bad.length>1?"s":""); return; }
+        /* give up after 60 ASKS, not 20 minutes on the clock: a phone asleep in
+           a pocket asks nothing, and used to throw a finished read away on the
+           first tick after waking (reviewer, 2026-09-13) */
+        c.sb.polls=(c.sb.polls||0)+1;
+        if(c.sb.polls > 60){ c.sb.failed="no answer after 20 minutes of asking"; return; }
+        return tvFetch(SB_API+"?cards="+encodeURIComponent(c.sb.bases.join(","))+"&t="+Date.now(), {method:"GET"})
+          .then(function(res){
+            var rs=c.sb.bases.map(function(b){ return res && res.ok && res.cards ? res.cards[b] : null; });
+            if(!rs.every(function(r){ return r && r.done; })) return;   /* still reading */
+            var bad=rs.map(function(r,i){ return (!r.card || !(r.card.players||[]).length) ? (i?"back":"front") : null; }).filter(Boolean);
+            if(bad.length){ c.sb.failed="could not read the "+bad.join(" and ")+" nine"; return; }
             c.sb.cards={f:rs[0].card, b:rs[1].card}; c.sb.done=true;
           }).catch(function(){});   /* no signal: ask again next time */
       });
@@ -777,20 +806,40 @@
     c.players.forEach(function(pid){ d.hcp1[pid]=c.hcp[pid]; d.s1[pid]=c.scores[pid].map(function(v){ return v==null?NONE:v; }); });
     var front=(c.sb.cards.f.players||[]);
     c.players.forEach(function(pid){ var p=person(pid); var i=p?sbMatchRow(p, front):-1; if(i>=0) d.sbRows[pid]=i; });
+    /* two players on one row (brothers: Steve and Tim Sullivan, and the reader
+       read only one Sullivan) — never guess, ask (reviewer, 2026-09-13) */
+    var seen={}; d.players.forEach(function(pid){ var i=d.sbRows[pid]; if(i!=null) seen[i]=(seen[i]||0)+1; });
+    d.players.forEach(function(pid){ if(seen[d.sbRows[pid]]>1) delete d.sbRows[pid]; });
     S.draft=d; sbFill(); render();
   }
-  /* the reader's 18 holes and handicap for each player, from the rows chosen */
+  /* the reader's 18 holes and handicap for each player, from the rows chosen.
+     What he did NOT read is kept as a fact, never quietly filled in from Kyle's
+     own typing: a handicap he did not see, or a back half with no row for the
+     player, are said on the Differences screen and in the method. */
   function sbFill(){
     var d=S.draft, c=null; S.cards.forEach(function(x){ if(x.id===d.id) c=x; }); if(!c||!c.sb||!c.sb.cards) return;
     var front=c.sb.cards.f.players||[], back=c.sb.cards.b.players||[];
+    d.sbUnread={};
     d.players.forEach(function(pid){
       var i=d.sbRows[pid]; if(i==null || i<0){ delete d.s2[pid]; return; }
       var fr=front[i], br=back[i]||null;   /* the back half pairs by row order, as on the card */
-      d.s2[pid]=sbHoles(fr).concat(sbHoles(br));
-      /* the reader's handicap is compared only when it saw one */
-      d.hcp2[pid]=(fr && typeof fr.handicap==="number") ? fr.handicap : d.hcp1[pid];
+      var holes=sbHoles(fr).concat(br ? sbHoles(br) : d.s1[pid].slice(9).map(function(v){ return v===NONE?null:v; }));
+      d.s2[pid]=holes;
+      var unread=[];
+      if(!br) unread.push("back nine");
+      if(fr && typeof fr.handicap==="number") d.hcp2[pid]=fr.handicap; else { d.hcp2[pid]=d.hcp1[pid]; unread.push("handicap"); }
+      if(unread.length) d.sbUnread[pid]=unread;
     });
     d.step = d.players.every(function(pid){ return d.s2[pid]; }) ? "diff" : "sbpick";
+  }
+  function sbUnreadNote(){
+    var d=S.draft, lines=[];
+    d.players.forEach(function(pid){ if(d.sbUnread && d.sbUnread[pid]) lines.push("ScannerBot did not read "+first(pid)+"'s "+d.sbUnread[pid].join(" or ")+" — yours stands, unchecked."); });
+    return lines.length ? h("div",{class:"check warn"},[ h("div",{class:"t",text:lines.join(" ")}) ]) : null;
+  }
+  function sbMethod(n){
+    var d=S.draft, partial=d.sbUnread && Object.keys(d.sbUnread).length;
+    return "ScannerBot"+(partial?" (part)":"")+(n?" · "+n+" settled":"");
   }
   function renderSbPick(){
     var d=S.draft, c=null; S.cards.forEach(function(x){ if(x.id===d.id) c=x; });
@@ -977,7 +1026,10 @@
     /* Changing your mind about typing it again: back to the choices, keeping the
        first entry and dropping only the second read. Kyle, 2026-09-13: "I decided
        I didn't want that option afterall and can't go back". */
-    var back = d.sbCheck ? h("button",{class:"btn link",text:"Not now · leave it provisional",onclick:function(){ S.draft=null; photoURL={}; S.view="home"; render(); }})
+    /* a garbage read must not trap the team: the other checks stay one tap away */
+    var back = d.sbCheck ? h("div",{class:"row links"},[
+        h("button",{class:"btn link",text:"Check another way",onclick:function(){ d.sbCheck=false; d.pass=1; d.s2={}; d.hcp2={}; d.res={}; d.sbUnread={}; d.order=d.players.slice(); d.pi=0; d.nine=0; d.armed=null; d.ask=null; d.buf=""; d.step="verify"; render(); }}),
+        h("button",{class:"btn link",text:"Not now · leave it provisional",onclick:function(){ S.draft=null; photoURL={}; S.view="home"; render(); }}) ])
       : d.pass===2 ? h("button",{class:"btn link",text:"Back to the check choices",onclick:function(){
       d.pass=1; d.s2={}; d.hcp2={}; d.res={}; d.order=d.players.slice(); d.pi=0; d.nine=0; d.armed=null; d.ask=null; d.buf=""; d.step="verify"; render(); }}) : null;
     return h("div",{},[ back, h("div",{class:"row links"},[
@@ -1203,8 +1255,9 @@
   function checkName(){ return S.draft && S.draft.sbCheck ? "ScannerBot" : "Second read"; }
   function renderDiff(){
     var d=S.draft, list=diffs(), kids=[], sb=!!d.sbCheck;
+    if(sb) kids.push(sbUnreadNote());
     if(!list.length){
-      kids.push(h("div",{class:"check good"},[ h("div",{class:"t",text:sb?"ScannerBot read the same, every hole, every handicap.":"Both passes agree, every hole, every handicap."}) ]));
+      kids.push(h("div",{class:"check good"},[ h("div",{class:"t",text:sb?"ScannerBot read the same on every hole and handicap he read.":"Both passes agree, every hole, every handicap."}) ]));
       kids.push(h("button",{class:"btn",text:"Continue",onclick:function(){ d.step="confirm"; render(); }}));
     }else{
       kids.push(h("div",{class:"big",text:list.length+" difference"+(list.length>1?"s":"")}));
@@ -1243,9 +1296,10 @@
         h("td",{class:"n",text:String(sum(a,0,9))}), h("td",{class:"n",text:String(sum(a,9,18))}),
         h("td",{class:"n",text:String(g)+(part?"*":"")}), h("td",{class:"n",text:String(net)+(part?"*":"")}) ])); });
     kids.push(t);
-    var method=checkName()+(n?" · "+n+" settled":"");
-    kids.push(h("div",{class:"check good"},[ h("div",{class:"t",text:checkName()+" · "+(n?n+" difference"+(n>1?"s":"")+" settled against the paper":"no differences")}),
+    var method=d.sbCheck ? sbMethod(n) : checkName()+(n?" · "+n+" settled":"");
+    kids.push(h("div",{class:"check good"},[ h("div",{class:"t",text:method+(n?" against the paper":" · no differences")}),
       d.notes.length?h("div",{text:d.notes.join(". ")}):null ]));
+    if(d.sbCheck) kids.push(sbUnreadNote());
     var gap=nobodyHoles(r.sc, d.players);
     if(gap.length) kids.push(nobodyWarning(gap));
     if(d.error) kids.push(h("div",{class:"check bad"},[ h("div",{class:"t",text:d.error}) ]));
@@ -1360,9 +1414,9 @@
   /* One fetch, with a clock on it. A send that never answered used to hold the
      busy flag for good and the TV stopped moving until the app was reloaded.
      An HTTP error is named as one, not called "no signal". */
-  function tvFetch(url, opts){
+  function tvFetch(url, opts, ms){
     var ctl=(typeof AbortController!=="undefined")?new AbortController():null, timer=null;
-    if(ctl){ opts.signal=ctl.signal; timer=setTimeout(function(){ ctl.abort(); }, 20000); }
+    if(ctl){ opts.signal=ctl.signal; timer=setTimeout(function(){ ctl.abort(); }, ms||20000); }
     return fetch(url, opts).then(function(r){
       if(timer) clearTimeout(timer);
       if(!r.ok){ var e=new Error("channel error "+r.status); e.http=true; throw e; }
@@ -1456,7 +1510,7 @@
      the offline copy's version, so Kyle's phone said v10 while the v9 screen was
      still running and still said "random order" (2026-09-13). test/walk.js
      fails if this and CACHE in sw.js ever differ. */
-  var APP_VERSION = "mengacci-v14";
+  var APP_VERSION = "mengacci-v15";
   var versionText="not installed", swVersion=null;
   function showVersion(){
     var el=document.getElementById("stamp"); if(!el) return;
