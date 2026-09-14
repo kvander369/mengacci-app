@@ -784,7 +784,7 @@
            a pocket asks nothing, and used to throw a finished read away on the
            first tick after waking (reviewer, 2026-09-13) */
         c.sb.polls=(c.sb.polls||0)+1;
-        if(c.sb.polls > 60){ c.sb.failed="no answer after 20 minutes of asking"; return; }
+        if(c.sb.polls > 60){ c.sb.failed="no answer after 20 minutes of asking (ScannerBot busy, or out of reads for the day)"; return; }
         return tvFetch(SB_API+"?cards="+encodeURIComponent(c.sb.bases.join(","))+"&t="+Date.now(), {method:"GET"})
           .then(function(res){
             var rs=c.sb.bases.map(function(b){ return res && res.ok && res.cards ? res.cards[b] : null; });
@@ -834,7 +834,16 @@
     d.sbUnread={};
     d.players.forEach(function(pid){
       var i=d.sbRows[pid]; if(i==null || i<0){ delete d.s2[pid]; return; }
-      var fr=front[i], br=back[i]||null;   /* the back half pairs by row order, as on the card */
+      /* The back half pairs by row order, as on the card, ONLY when both halves
+         read the same number of rows. ScannerBot reads each photo on its own
+         and has returned five rows for four players and a short back nine
+         before; with the counts apart, row order is a guess that could put
+         someone else's back nine on this player. Then a back row is taken
+         only by name, and otherwise the back nine is unread and said so
+         (ScannerBot seat, 2026-09-14; the same rule as its own verify screen). */
+      var fr=front[i], br=null;
+      if(back.length===front.length) br=back[i]||null;
+      else { var p=person(pid), j=p?sbMatchRow(p, back):-1; if(j>=0) br=back[j]; }
       var holes=sbHoles(fr).concat(br ? sbHoles(br) : d.s1[pid].slice(9).map(function(v){ return v===NONE?null:v; }));
       d.s2[pid]=holes;
       var unread=[];
@@ -1527,7 +1536,7 @@
      the offline copy's version, so Kyle's phone said v10 while the v9 screen was
      still running and still said "random order" (2026-09-13). test/walk.js
      fails if this and CACHE in sw.js ever differ. */
-  var APP_VERSION = "mengacci-v18";
+  var APP_VERSION = "mengacci-v19";
   var versionText="not installed", swVersion=null;
   function showVersion(){
     var el=document.getElementById("stamp"); if(!el) return;
