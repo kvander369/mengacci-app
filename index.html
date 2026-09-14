@@ -722,7 +722,11 @@
     return new Promise(function(res){
       try{
         if(typeof createImageBitmap!=="function" || typeof document.createElement!=="function") return res(blob);
-        createImageBitmap(blob).then(function(bm){
+        /* honour the photo's own "turn me" note: an iPhone stores the pixels as
+           the sensor sits and a note saying which way is up. Drawing without
+           the note sent a portrait card sideways (Fable's review, 2026-09-14).
+           A browser that already does this ignores the option. */
+        createImageBitmap(blob, { imageOrientation: "from-image" }).then(function(bm){
           var W=bm.width, H=bm.height, L=1600, s=Math.min(1, L/Math.max(W,H));
           if(s>=1){ res(blob); return; }
           var c=document.createElement("canvas"); c.width=Math.round(W*s); c.height=Math.round(H*s);
@@ -1514,7 +1518,7 @@
      the offline copy's version, so Kyle's phone said v10 while the v9 screen was
      still running and still said "random order" (2026-09-13). test/walk.js
      fails if this and CACHE in sw.js ever differ. */
-  var APP_VERSION = "mengacci-v16";
+  var APP_VERSION = "mengacci-v17";
   var versionText="not installed", swVersion=null;
   function showVersion(){
     var el=document.getElementById("stamp"); if(!el) return;
