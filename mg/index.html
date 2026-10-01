@@ -317,7 +317,7 @@
   /* Which version this page is: shown small on the board and in Setup, and
      in the tab title, so "did the club TV take the reload?" has an answer
      (Fable's review, 2026-09-13). Bump it when the page changes. */
-  var MG_VERSION = "v2.7";
+  var MG_VERSION = "v2.8";
   var q = new URLSearchParams(location.search);
   if (q.get("api")) MG_API = q.get("api");
   var ENTRY = q.get("enter") === "1";
@@ -452,6 +452,7 @@
       pad.appendChild(pasteBox());
       return pad;
     }
+    pad.appendChild(siteSheetButton());
     var wait = false;
     F.forEach(function(f, fi){
       if(/^W/.test(f.n) && !wait){ wait = true; pad.appendChild(h("div",{class:"shead",text:"Waitlist"})); }
@@ -463,7 +464,6 @@
       ]));
     });
     pad.appendChild(h("div",{class:"note",text:"Who owes stays on this phone. The TV, the purse and the payouts count every team that is in as paid."}));
-    pad.appendChild(siteSheetButton());
     pad.appendChild(pasteBox());
     return pad;
   }
@@ -476,21 +476,36 @@
      The same file is where this phone backs up who owes, so once loaded the
      button is not offered again. */
   var siteSheet = null, siteAsked = false;
+  /* Kyle, 2026-10-01: the flight booklet came out and the field changed — he
+     wanted "only the teams that are playing" when he opens the app. A phone
+     that already holds a sheet is offered the Drive one too, but only when its
+     teams or numbers differ (who owes is the phone's and is not compared), and
+     loading it keeps who is in and who owes, like the paste box. */
+  function sheetKey(F){ return F.map(function(f){ return String(f.n) + "=" + pairKey(f.p); }).join(";"); }
+  function siteSheetNew(){
+    if(!siteSheet) return false;
+    var F = getField();
+    return !F.length || sheetKey(F) !== sheetKey(siteSheet.field.map(function(f){ return { n:String(f.n || ""), p:Pts.cleanTeams([f.p])[0] }; }));
+  }
   function siteSheetButton(){
     var holder = h("div",{});
     function draw(){
       holder.innerHTML = "";
-      if(!siteSheet || getField().length) return;
+      if(!siteSheetNew()) return;
+      var had = getField().length;
       holder.appendChild(h("button",{class:"bigbtn solid",
-        text:"Load " + (siteSheet.event || "the sheet") + " — " + siteSheet.field.length + " teams",
+        text:(had ? "Load the new sheet: " : "Load ") + (siteSheet.event || "the sheet") + " — " + siteSheet.field.length + " teams" + (had ? " (who is in and who owes are kept)" : ""),
         onclick:function(){
-          setField(siteSheet.field.map(function(f){ return { n:String(f.n || ""), p:Pts.cleanTeams([f.p])[0], owes:f.owes === true }; }));
+          var old = {};
+          getField().forEach(function(f){ if(f.owes) old[pairKey(f.p)] = true; });
+          setField(siteSheet.field.map(function(f){ var p = Pts.cleanTeams([f.p])[0]; return { n:String(f.n || ""), p:p, owes:f.owes === true || !!old[pairKey(p)] }; }));
           setFieldEvent(siteSheet.event || "");
           postState = siteSheet.field.length + " teams on the sheet — check them against the paper";
+          if(had) backupSignup();
           renderEntry();
         }}));
     }
-    if(siteAsked || !MG_API || getField().length){ draw(); return holder; }
+    if(siteAsked || !MG_API){ draw(); return holder; }
     siteAsked = true;
     fetch(MG_API + (MG_API.indexOf("?")>=0?"&":"?") + "board=vtp-signup&t=" + Date.now())
       .then(function(r){ return r.json(); })
