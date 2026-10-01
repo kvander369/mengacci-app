@@ -317,7 +317,7 @@
   /* Which version this page is: shown small on the board and in Setup, and
      in the tab title, so "did the club TV take the reload?" has an answer
      (Fable's review, 2026-09-13). Bump it when the page changes. */
-  var MG_VERSION = "v2.5";
+  var MG_VERSION = "v2.6";
   var q = new URLSearchParams(location.search);
   if (q.get("api")) MG_API = q.get("api");
   var ENTRY = q.get("enter") === "1";
@@ -690,7 +690,7 @@
     var right = [{text: n ? (part ? "Match " + n + " coming in" : "After match " + n + " of " + R)
                           : "No scores yet"}];
     if(part) right.push({text: inThis + " of " + TEAMS.length + " in", warn:true});
-    if(n && pagesFor > 1) right.push({text: (page + 1) + " of " + pagesFor});
+    if(pagesFor > 1) right.push({text: (page + 1) + " of " + pagesFor});
     if(MG_API){
       /* a frozen board must say so in a way that reads across the room: a solid
          gold block, not a tint of white (Fable's review, 2026-09-13) */
@@ -703,7 +703,11 @@
     scr.appendChild(topBand(right));
     scr.appendChild(h("div",{class:"stamp",text:MG_VERSION}));
 
-    if(!n){
+    /* Kyle, 2026-10-01: "it would be nice to see the teams that are playing on
+       the board even though the match didn't start". With teams and no scores
+       the list shows, every team at "–" in the order sent; the blank screen is
+       only for a board with no teams at all. */
+    if(!n && !TEAMS.length){
       scr.appendChild(h("div",{class:"blank"},[
         h("div",{class:"big",text:"No scores yet"}),
         h("div",{class:"sub",text:"The board fills in as each match comes in."})
@@ -862,7 +866,7 @@
       r.rounds.forEach(function(v){
         cells.push(h("td",{class:"r"+(v===null?" dash":""),text:show(v)}));
       });
-      cells.push(h("td",{class:"tot",text:show(r.total)}));
+      cells.push(h("td",{class:"tot",text:r.rank === null ? "–" : show(r.total)}));   /* no score: a dash, not a 0 */
       if(S2.on) cells.push(h("td",{class:"sn"+(r.sunEligible?"":" out"),text:r.sundayPlayed?show(r.sunday):"–"}));
       return h("tr",{class:(r.paidPlace?"lead ":"")+(S2.on&&r.sundayPlayed&&r.sunEligible&&r.sunRank===1?"sunlead":"")},cells);
     });
