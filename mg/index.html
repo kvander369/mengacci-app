@@ -317,7 +317,7 @@
   /* Which version this page is: shown small on the board and in Setup, and
      in the tab title, so "did the club TV take the reload?" has an answer
      (Fable's review, 2026-09-13). Bump it when the page changes. */
-  var MG_VERSION = "v2.3";
+  var MG_VERSION = "v2.4";
   var q = new URLSearchParams(location.search);
   if (q.get("api")) MG_API = q.get("api");
   var ENTRY = q.get("enter") === "1";
@@ -396,6 +396,16 @@
     var raw = q.get("field");
     if(!raw || !ENTRY) return;
     try{ history.replaceState(null, "", location.pathname + "?enter=1"); }catch(e){}
+    loadField(raw);
+  }
+  /* An iPhone opens a tapped link in Safari, and the home-screen app keeps
+     its own storage, so the link alone never reaches the app. The paste box
+     on the Sign-up tab takes the same link (or just the list) instead. */
+  function loadField(raw){
+    raw = String(raw || "").trim();
+    var m = /[?&]field=([^&\s]*)/.exec(raw);
+    if(m){ try{ raw = decodeURIComponent(m[1].replace(/\+/g, " ")); }catch(e){ return 0; } }
+    else if(raw.indexOf("/") < 0) return 0;   /* not a link and not a list of pairs */
     var old = {};
     getField().forEach(function(f){ if(f.owes) old[pairKey(f.p)] = true; });
     var list = [];
@@ -404,11 +414,12 @@
       var p = Pts.cleanTeams([(m ? m[2] : t).split("/")])[0];
       if(p[0] || p[1]) list.push({ n:n, p:p, owes:!!old[pairKey(p)] });
     });
-    if(!list.length) return;
+    if(!list.length) return 0;
     setField(list);
     tab = "signup";
     postState = list.length + " teams on the sheet — check them against the paper";
     backupSignup();
+    return list.length;
   }
 
   /* ---------- the Sign-up tab ---------- */
@@ -436,7 +447,8 @@
       text:"Also in, typed on the Teams tab (counted as paid): " + extra.map(Pts.teamName).join(" · ")}));
     pad.appendChild(h("div",{class:"note",style:"padding:4px 0 0",id:"bkup",text:backupNote}));
     if(!F.length){
-      pad.appendChild(h("div",{class:"warnbox",text:"No sheet yet. Ask Claude to turn the printout into a sign-up link, then tap it on this phone."}));
+      pad.appendChild(h("div",{class:"warnbox",text:"No sheet yet. Ask Claude to turn the printout into a sign-up link, then paste it below."}));
+      pad.appendChild(pasteBox());
       return pad;
     }
     var wait = false;
@@ -450,7 +462,20 @@
       ]));
     });
     pad.appendChild(h("div",{class:"note",text:"Who owes stays on this phone. The TV, the purse and the payouts count every team that is in as paid."}));
+    pad.appendChild(pasteBox());
     return pad;
+  }
+  /* paste the sign-up link: press and hold in the box, Paste, then Load */
+  function pasteBox(){
+    var box = h("textarea",{rows:"3",placeholder:"Paste the sign-up link here",
+      style:"width:100%;font-size:16px;padding:10px;border:2px solid var(--line);border-radius:8px;margin-top:16px"});
+    return h("div",{},[ box,
+      h("button",{class:"bigbtn",text:getField().length ? "Load a new sheet (who is in and who owes are kept)" : "Load the sheet",onclick:function(){
+        var n = loadField(box.value);
+        if(!n){ flash("That isn't a sign-up link"); return; }
+        renderEntry();
+      }})
+    ]);
   }
 
   function askState(fi){
