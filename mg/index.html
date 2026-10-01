@@ -507,11 +507,19 @@
     }
     if(siteAsked || !MG_API){ draw(); return holder; }
     siteAsked = true;
-    fetch(MG_API + (MG_API.indexOf("?")>=0?"&":"?") + "board=vtp-signup&t=" + Date.now())
-      .then(function(r){ return r.json(); })
-      .then(function(j){
-        if(j && j.format === "vtp-signup-v1" && Array.isArray(j.field) && j.field.length){ siteSheet = j; if(tab === "signup") renderEntry(); }
-      }).catch(function(){});
+    /* the sheet a seat publishes is its own file (board "vtp-sheet"), because
+       the Drive connector can make a file but not rewrite one, and so a phone's
+       backup can never write over it; the phone's backup (vtp-signup) is the
+       fallback for an event with no published sheet */
+    function ask(board, next){
+      fetch(MG_API + (MG_API.indexOf("?")>=0?"&":"?") + "board=" + board + "&t=" + Date.now())
+        .then(function(r){ return r.json(); })
+        .then(function(j){
+          if(j && j.format === "vtp-signup-v1" && Array.isArray(j.field) && j.field.length){ siteSheet = j; if(tab === "signup") renderEntry(); }
+          else if(next) next();
+        }).catch(function(){ if(next) next(); });
+    }
+    ask("vtp-sheet", function(){ ask("vtp-signup"); });
     return holder;
   }
   /* paste the sign-up link: press and hold in the box, Paste, then Load */
