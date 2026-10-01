@@ -113,6 +113,20 @@
   .trow .names{flex:1;min-width:0;display:flex;flex-direction:column;gap:6px}
   .trow input{width:100%;min-width:0;font-size:17px;padding:9px 10px;border:2px solid var(--line);border-radius:8px;background:#fff}
   .trow .x{flex:none;width:46px;height:46px;border:2px solid var(--line);border-radius:10px;background:var(--panel);color:var(--muted);font-size:24px;line-height:1}
+  /* the Sign-up tab: the printed field, each team out (grey), in and owes
+     (orange) or in and paid (green). Owing is Kyle's alone: never on the board. */
+  .srow{display:flex;align-items:center;gap:10px;background:var(--panel);border:2px solid var(--line);border-radius:12px;padding:8px 10px;margin-top:8px;width:100%;text-align:left;color:var(--muted)}
+  .srow .n{flex:none;width:34px;text-align:right;font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:22px}
+  .srow .names{flex:1;min-width:0;font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:21px;line-height:1.15}
+  .srow .names div{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .srow .st{flex:none;font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:19px;padding:6px 10px;border-radius:999px;background:var(--bg)}
+  .srow.paid{background:var(--green-soft);border-color:var(--green);color:var(--green)}
+  .srow.paid .st{background:var(--green);color:var(--green-ink)}
+  .srow.owe{background:#FCE8D4;border-color:#E07B1F;color:#8F4A0E}
+  .srow.owe .st{background:#E07B1F;color:#fff}
+  .shead{font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:20px;color:var(--muted);margin:16px 0 0;text-transform:uppercase;letter-spacing:.08em}
+  .bigbtn.paid{background:var(--green);border-color:var(--green);color:var(--green-ink)}
+  .bigbtn.owe{background:#E07B1F;border-color:#E07B1F;color:#fff}
   .warnbox{background:var(--gold-soft);color:#7A560F;border-radius:10px;padding:10px 12px;margin-top:10px;font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:20px}
   .bigbtn{display:block;width:100%;margin-top:10px;font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:22px;padding:14px 0;
     border:2px solid var(--green);border-radius:12px;background:var(--panel);color:var(--green)}
@@ -193,7 +207,7 @@
 <body>
 <div class="screen" id="screen"></div>
 <script src="points.js?v=2f7a0422bb"></script>
-<script src="record.js?v=35df223091"></script>
+<script src="record.js?v=8cd7245d73"></script>
 <script>
 (function(){
   "use strict";
@@ -286,6 +300,11 @@
                                        stored under a different one and this page
                                        never reads or writes it. */
   var KEYSTORE = "vtp_key";         /* the posting key, this device only */
+  /* the printed field for the Sign-up tab: [{ n:"1" or "W1", p:[name, name],
+     owes:true/false }]. Whether a team is IN is not stored here — it is in
+     the pool when its two names are on the Teams list — so the two can never
+     disagree. Owing is stored only here. */
+  var FIELDSTORE = "vtp_field";
   var NROWS = 7;                    /* every team's scores hold 7 matches, so
                                        switching 7 to 5 and back loses nothing */
 
@@ -298,7 +317,7 @@
   /* Which version this page is: shown small on the board and in Setup, and
      in the tab title, so "did the club TV take the reload?" has an answer
      (Fable's review, 2026-09-13). Bump it when the page changes. */
-  var MG_VERSION = "v2.2";
+  var MG_VERSION = "v2.3";
   var q = new URLSearchParams(location.search);
   if (q.get("api")) MG_API = q.get("api");
   var ENTRY = q.get("enter") === "1";
@@ -325,12 +344,13 @@
      own; the board replaces all three with what the channel carries. */
   var TEAMS = getTeams();
   var SETUP = localSetup();
-  var tab = (q.get("tab") === "teams" || q.get("tab") === "setup") ? q.get("tab") : "scores";
+  var tab = /^(teams|setup|signup)$/.test(q.get("tab") || "") ? q.get("tab") : "scores";
   var round0 = 0;
   var points = load();
   var lastPost = 0, lastOK = 0, everFetched = false, postState = "";
   preload();
   preloadTeams();
+  preloadField();
 
   /* ?set=1&vals=3.5,3,1.5,... fills one whole match in team order and then
      takes itself out of the address bar, so a refresh cannot re-apply it. */
@@ -365,6 +385,159 @@
     points = fitPoints([], TEAMS.length); save();
     tab = "teams";
     postState = list.length + " teams from the link — check them against the sheet";
+  }
+
+  /* ?field=1:Ann Smith/Bob Jones;2:Cal Lee/Dan Poe;W1:Eve Ray/Fay Wu loads the
+     printed field into the Sign-up tab. Kyle, 2026-10-01: "I will always have a
+     print out ... as people pay me the $100 I click on the team". It touches
+     nothing in the pool: who is in stays as it was, and a team that owes on
+     this phone still owes if it is on the new sheet. */
+  function preloadField(){
+    var raw = q.get("field");
+    if(!raw || !ENTRY) return;
+    try{ history.replaceState(null, "", location.pathname + "?enter=1"); }catch(e){}
+    var old = {};
+    getField().forEach(function(f){ if(f.owes) old[pairKey(f.p)] = true; });
+    var list = [];
+    raw.split(";").forEach(function(t, i){
+      var m = /^\s*([A-Za-z]*\d+)\s*:(.*)$/.exec(t), n = m ? m[1].toUpperCase() : String(i + 1);
+      var p = Pts.cleanTeams([(m ? m[2] : t).split("/")])[0];
+      if(p[0] || p[1]) list.push({ n:n, p:p, owes:!!old[pairKey(p)] });
+    });
+    if(!list.length) return;
+    setField(list);
+    tab = "signup";
+    postState = list.length + " teams on the sheet — check them against the paper";
+    backupSignup();
+  }
+
+  /* ---------- the Sign-up tab ---------- */
+  function pairKey(p){ return (String(p[0]||"") + "/" + String(p[1]||"")).toLowerCase().replace(/\s+/g, " ").trim(); }
+  /* where this sheet team sits in the pool, either way round, or -1 */
+  function inPool(f){
+    var a = pairKey(f.p), b = pairKey([f.p[1], f.p[0]]);
+    for(var i = 0; i < TEAMS.length; i++){ var k = pairKey(TEAMS[i]); if(k === a || k === b) return i; }
+    return -1;
+  }
+  function fieldState(f){ return inPool(f) < 0 ? "out" : (f.owes ? "owe" : "paid"); }
+  function stateWord(s){ return s === "paid" ? "Paid" : s === "owe" ? "Owes" : "Not in"; }
+
+  function signupTab(){
+    var pad = h("div",{class:"pad"}), F = getField();
+    var nIn = 0, nOwe = 0;
+    F.forEach(function(f){ var s = fieldState(f); if(s !== "out") nIn++; if(s === "owe") nOwe++; });
+    var onSheet = {};
+    F.forEach(function(f){ var i = inPool(f); if(i >= 0) onSheet[i] = true; });
+    var extra = TEAMS.filter(function(p, i){ return !onSheet[i] && (p[0] || p[1]); });
+    var entry = Pts.ENTRY || 100;
+    pad.appendChild(h("div",{class:"count",style:"padding:0;color:var(--ink);font-size:26px",
+      text:(nIn + extra.length) + " in · " + (nIn + extra.length - nOwe) + " paid · " + nOwe + " owe" + (nOwe ? " (" + Pts.dollars(nOwe * entry) + ")" : "")}));
+    if(extra.length) pad.appendChild(h("div",{class:"note",style:"padding:4px 0 0",
+      text:"Also in, typed on the Teams tab (counted as paid): " + extra.map(Pts.teamName).join(" · ")}));
+    pad.appendChild(h("div",{class:"note",style:"padding:4px 0 0",id:"bkup",text:backupNote}));
+    if(!F.length){
+      pad.appendChild(h("div",{class:"warnbox",text:"No sheet yet. Ask Claude to turn the printout into a sign-up link, then tap it on this phone."}));
+      return pad;
+    }
+    var wait = false;
+    F.forEach(function(f, fi){
+      if(/^W/.test(f.n) && !wait){ wait = true; pad.appendChild(h("div",{class:"shead",text:"Waitlist"})); }
+      var s = fieldState(f);
+      pad.appendChild(h("button",{class:"srow " + s, onclick:function(){ askState(fi); }},[
+        h("div",{class:"n",text:f.n}),
+        h("div",{class:"names"},[ h("div",{text:f.p[0]}), h("div",{text:f.p[1]}) ]),
+        h("div",{class:"st",text:stateWord(s)})
+      ]));
+    });
+    pad.appendChild(h("div",{class:"note",text:"Who owes stays on this phone. The TV, the purse and the payouts count every team that is in as paid."}));
+    return pad;
+  }
+
+  function askState(fi){
+    var f = getField()[fi], s = fieldState(f);
+    function pickState(v){ return function(){ setState(fi, v); }; }
+    var sheet = h("div",{class:"sheet",onclick:function(e){ if(e.target === sheet) close(); }});
+    var inner = h("div",{class:"sheetin"},[
+      h("div",{class:"sheetnm",text:f.n + ". " + Pts.teamName(f.p)}),
+      h("div",{class:"sheetsub",text:"Now: " + stateWord(s)})
+    ]);
+    [["paid","Paid"],["owe","In, owes"],["out","Not in"]].forEach(function(b){
+      inner.appendChild(h("button",{class:"bigbtn " + (b[0] === "out" ? "quiet" : b[0]) ,text:b[1] + (b[0] === s ? "  ✓" : ""),
+        onclick:function(){ close(); if(b[0] !== s) pickState(b[0])(); }}));
+    });
+    inner.appendChild(h("button",{class:"bigbtn quiet",text:"Cancel",onclick:close}));
+    sheet.appendChild(inner);
+    function close(){ if(sheet.parentNode) sheet.parentNode.removeChild(sheet); }
+    document.body.appendChild(sheet);
+  }
+
+  function setState(fi, v){
+    var F = getField(), f = F[fi], i = inPool(f);
+    function keep(){ F[fi].owes = (v === "owe"); setField(F); backupSignup(); }
+    if(v === "out"){
+      if(i < 0){ keep(); renderEntry(); return; }
+      var drop = function(){ TEAMS.splice(i, 1); points.splice(i, 1); setTeams(TEAMS); save(); keep(); renderEntry(); };
+      if(!hasScores(i)) return drop();
+      confirmSheet("Take " + Pts.teamName(f.p) + " out?", "They have scores. Their scores on this phone go too.",
+        [["Take them out", drop, true], ["Cancel", null]]);
+      return;
+    }
+    if(i >= 0){ keep(); renderEntry(); return; }
+    /* LATE ENTRY. Kyle, 2026-10-01: "there is always some knucklehead that
+       wants to get in after the first round ... at my discretion", and "the
+       late entries still need to have their match 1 scores entered." */
+    function add(){
+      var at = insertAt(fi);
+      TEAMS.splice(at, 0, f.p.slice()); points.splice(at, 0, fitPoints([], 1)[0]);
+      setTeams(TEAMS); save(); keep();
+      if(!empty()){
+        round0 = 0; tab = "scores";
+        postState = "Enter " + Pts.teamName(f.p) + "'s match 1 score";
+      }
+      renderEntry();
+    }
+    if(empty()) return add();
+    var n = Pts.roundsIn(points, SETUP.rounds);
+    confirmSheet("Put " + Pts.teamName(f.p) + " in late?",
+      "Scoring has started. They need their score" + (n > 1 ? "s for matches 1–" + n : " for match 1") + " entered too.",
+      [["Put them in", add, true], ["Cancel", null]]);
+  }
+  /* in sheet order on the Scores tab, like the paper: before the first team
+     in the pool that comes later on the sheet; teams not on the sheet stay last */
+  function insertAt(fi){
+    var F = getField(), order = {};
+    F.forEach(function(f, k){ var j = inPool(f); if(j >= 0) order[j] = k; });
+    for(var j = 0; j < TEAMS.length; j++){ if(!(j in order) || order[j] > fi) return j; }
+    return TEAMS.length;
+  }
+
+  /* The sign-up list is backed up to its own file on the channel (board
+     "vtp-signup"), never in what the TV reads, so a lost phone does not lose
+     who owes. Sent a moment after the last tap. */
+  var backupNote = "", backupTimer = null;
+  function backupSignup(){
+    if(!MG_API || !getKey()) { backupNote = "Not backed up: type the TV key on Setup"; return; }
+    if(backupTimer) clearTimeout(backupTimer);
+    backupTimer = setTimeout(function(){
+      backupTimer = null;
+      var body = { key:getKey(), board:"vtp-signup", round:{ format:"vtp-signup-v1", posted:new Date().toISOString(), field:getField() } };
+      fetch(MG_API, { method:"POST", redirect:"follow", headers:{"Content-Type":"text/plain;charset=utf-8"}, body:JSON.stringify(body) })
+        .then(function(r){ return r.json(); })
+        .then(function(j){ backupNote = (j && j.ok) ? "Sign-up list backed up " + clock(Date.now()) : "Not backed up: " + ((j && j.error) || "?"); })
+        .catch(function(){ backupNote = "Not backed up yet: no signal. It tries again on the next tap."; })
+        .then(function(){ var b = document.getElementById("bkup"); if(b) b.textContent = backupNote; });
+    }, 1500);
+  }
+  /* a phone with no sheet takes the backup — only with Get from TV, never on its own */
+  function grabSignup(){
+    if(!MG_API || getField().length) return;
+    fetch(MG_API + (MG_API.indexOf("?")>=0?"&":"?") + "board=vtp-signup&t=" + Date.now())
+      .then(function(r){ return r.json(); })
+      .then(function(j){
+        if(j && j.format === "vtp-signup-v1" && Array.isArray(j.field) && j.field.length && !getField().length){
+          setField(j.field); if(tab === "signup") renderEntry();
+        }
+      }).catch(function(){});
   }
 
   /* ---------- storage ---------- */
@@ -644,13 +817,14 @@
     scr.appendChild(topBand([{text:"Entry · " + MG_VERSION},{text:postState||(MG_API?"TV connected":"This phone only")}]));
 
     var tabs = h("div",{class:"tabs"});
-    [["scores","Scores"],["teams","Teams"],["setup","Setup"]].forEach(function(t){
+    [["signup","Sign-up"],["scores","Scores"],["teams","Teams"],["setup","Setup"]].forEach(function(t){
       tabs.appendChild(h("button",{class:(tab === t[0] ? "on" : ""), text:t[1],
         onclick:function(){ tidyTeams(); tab = t[0]; renderEntry(); }}));
     });
     scr.appendChild(tabs);
 
-    if(tab === "teams") scr.appendChild(teamsTab());
+    if(tab === "signup") scr.appendChild(signupTab());
+    else if(tab === "teams") scr.appendChild(teamsTab());
     else if(tab === "setup") scr.appendChild(setupTab());
     else scoresTab(scr);
 
@@ -922,7 +1096,7 @@
        ["Cancel", null]]);
   }
   function startNew(clearTeams){
-    if(clearTeams){ TEAMS = []; setTeams(TEAMS); sendEmpty = true; }   /* the one time an empty send is meant */
+    if(clearTeams){ TEAMS = []; setTeams(TEAMS); setField([]); sendEmpty = true; }   /* the one time an empty send is meant */
     points = fitPoints([], TEAMS.length); save();
     setFinal(false); setPrizes([0,0,0]);
     var s = getSecond(); s.amount = 0; setSecond(s);
@@ -936,10 +1110,12 @@
   /* SHARE RESULTS: the same Excel record a seat saves, built on the phone and
      handed to the share sheet (Mail, Messages, Save to Files). */
   function today(){ var d = new Date(); return d.getFullYear() + "-" + ("0" + (d.getMonth()+1)).slice(-2) + "-" + ("0" + d.getDate()).slice(-2); }
+  /* the sign-up sheet for the record: Kyle's own copy, so who owed is on it */
+  function signupRows(){ return getField().map(function(f){ return { n:f.n, p:f.p, state:stateWord(fieldState(f)) }; }); }
   function shareResults(){
     if(!window.Record){ flash("Share needs the new version: close and reopen the app"); return; }
     var round = roundToSend(), date = today(), bytes, name = window.Record.fileName(round, date);
-    try{ bytes = window.Record.build(round, { date:date, note:"Shared from the phone" }); }
+    try{ bytes = window.Record.build(round, { date:date, note:"Shared from the phone", signup:signupRows() }); }
     catch(e){ flash("Could not make the file: " + e.message); return; }
     var type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
     /* a share that fails for any reason but a cancel falls back to saving the
@@ -973,7 +1149,7 @@
      tab never writes the team list, so "no team list" alone let a phone pull
      the TV's copy over its freshly typed money on every open (Fable's review). */
   function freshPhone(){
-    var touched = [TEAMSTORE, PRIZESTORE, SECONDSTORE, PLACESTORE, ROUNDSTORE, EVSTORE, TITLESTORE, FINALSTORE].some(function(k){ return read(k) !== null; });
+    var touched = [TEAMSTORE, FIELDSTORE, PRIZESTORE, SECONDSTORE, PLACESTORE, ROUNDSTORE, EVSTORE, TITLESTORE, FINALSTORE].some(function(k){ return read(k) !== null; });
     return !touched && empty();
   }
   function grab(){
@@ -1007,6 +1183,7 @@
           if(j.event) setEvent(j.event);
           if(j.title) setTitle(j.title);
           SETUP = localSetup();
+          grabSignup();
           postState = "Got " + TEAMS.length + " teams and " + Pts.roundsIn(points, S.rounds) + " match(es) from the TV";
           renderEntry();
   }
@@ -1123,6 +1300,12 @@
   function readJSON(k){ try{ var v = read(k); return v === null ? null : JSON.parse(v); }catch(e){ return null; } }
   function getTeams(){ var t = readJSON(TEAMSTORE); return Array.isArray(t) ? Pts.cleanTeams(t) : Pts.cleanTeams(TEAMS_DEFAULT); }
   function setTeams(t){ write(TEAMSTORE, JSON.stringify(t)); }
+  function getField(){
+    var f = readJSON(FIELDSTORE);
+    return Array.isArray(f) ? f.filter(function(x){ return x && Array.isArray(x.p); })
+      .map(function(x){ return { n:String(x.n || ""), p:Pts.cleanTeams([x.p])[0], owes:x.owes === true }; }) : [];
+  }
+  function setField(f){ write(FIELDSTORE, JSON.stringify(f)); }
   function getRounds(){ return Pts.rounds(read(ROUNDSTORE)); }
   function setRounds(v){ write(ROUNDSTORE, String(Pts.rounds(v))); }
   function getPlaces(){ return Pts.places(read(PLACESTORE)); }

@@ -167,13 +167,19 @@
       return row;
     }));
 
+    /* the phone's sign-up sheet, when it has one: who was in and who still
+       owed. Kyle's record only — the TV never carries it. */
+    var signup = (opts && Array.isArray(opts.signup) && opts.signup.length)
+      ? [['#', 'Player', 'Player', 'Status'].map(b)].concat(opts.signup.map(function (f) { return [f.n, f.p[0], f.p[1], f.state]; }))
+      : [];
+
     var rw = [];
     for (k = 0; k < R; k++) rw.push(9);
     return workbook([
       { name: 'Summary', rows: summary, widths: [46, 70] },
       { name: 'Standings', rows: standings, widths: [7, 26, 20, 20].concat(rw, [8, 20, 22, 10]) },
       { name: 'Scores as entered', rows: entered, widths: [5, 20, 20].concat(rw) }
-    ]);
+    ].concat(signup.length ? [{ name: 'Sign-up', rows: signup, widths: [6, 20, 20, 10] }] : []));
   }
 
   /* "2026-09-13 3-Day Member Guest.xlsx" — nothing a file system refuses */
