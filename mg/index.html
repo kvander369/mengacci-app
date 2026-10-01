@@ -317,7 +317,7 @@
   /* Which version this page is: shown small on the board and in Setup, and
      in the tab title, so "did the club TV take the reload?" has an answer
      (Fable's review, 2026-09-13). Bump it when the page changes. */
-  var MG_VERSION = "v2.8";
+  var MG_VERSION = "v2.9";
   var q = new URLSearchParams(location.search);
   if (q.get("api")) MG_API = q.get("api");
   var ENTRY = q.get("enter") === "1";
@@ -447,8 +447,8 @@
       text:"Also in, typed on the Teams tab (counted as paid): " + extra.map(Pts.teamName).join(" · ")}));
     pad.appendChild(h("div",{class:"note",style:"padding:4px 0 0",id:"bkup",text:backupNote}));
     if(!F.length){
-      pad.appendChild(h("div",{class:"warnbox",text:"No sheet yet. Ask Claude to put the printout on the site, then tap the button that appears here."}));
       pad.appendChild(siteSheetButton());
+      if(siteAsked && !siteSheet) pad.appendChild(h("div",{class:"warnbox",text:"No sheet yet. Ask Claude to put the printout on the site, then tap the button that appears here."}));
       pad.appendChild(pasteBox());
       return pad;
     }
@@ -955,6 +955,10 @@
   function teamsTab(){
     var pad = h("div",{class:"pad"});
     pad.appendChild(h("div",{class:"count",style:"padding:0",text:TEAMS.length + (TEAMS.length === 1 ? " team" : " teams")}));
+    /* teams come from the sign-up sheet: tap a team Paid or In there and it is
+       on this list. An empty list says so, with the way there. */
+    if(!TEAMS.length) pad.appendChild(h("button",{class:"bigbtn solid",text:"Go to Sign-up — teams come from the sheet",
+      onclick:function(){ tab = "signup"; renderEntry(); }}));
     /* filled here, while the box is still being built: looking it up by id
        before it is on the screen found nothing, and left an empty bar */
     var warn = h("div",{class:"warnbox",id:"dups"});
@@ -1182,7 +1186,7 @@
       "This clears every score on this phone. Save the last one first: ask Claude to close it out, or tap Share results.",
       [["Share results first", shareResults],
        ["It's saved — keep these teams", function(){ startNew(false); }, true],
-       ["It's saved — clear the teams too", function(){ startNew(true); }, true],
+       ["It's saved — new teams (sign-up sheet)", function(){ startNew(true); }, true],
        ["Cancel", null]]);
   }
   function startNew(clearTeams){
@@ -1192,7 +1196,12 @@
     var s = getSecond(); s.amount = 0; setSecond(s);
     setEvent("");
     SETUP = localSetup();
-    round0 = 0; tab = clearTeams ? "teams" : "setup";
+    /* Kyle, 2026-10-01: Setup → Start a new tournament → clear the teams left
+       him on Teams with "Add a team" and no list, the Load button out of
+       sight on Sign-up ("this doesnt make sense"). New teams start from the
+       sign-up sheet, so that is where he lands, the sheet asked for afresh. */
+    round0 = 0; tab = clearTeams ? "signup" : "setup";
+    if(clearTeams){ siteAsked = false; siteSheet = null; }
     postState = "New tournament — not sent to the TV yet";
     renderEntry();
   }
