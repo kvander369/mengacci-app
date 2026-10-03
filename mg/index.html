@@ -106,6 +106,11 @@
   .row.done .val{border-color:var(--green);color:var(--green)}
   .row .val.empty{color:var(--line)}
   .row.done{background:var(--green-soft);border-color:var(--green-soft)}
+  .row .ggv{flex:none;font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:24px;text-align:right}
+  .row .ggsub{font-family:system-ui,sans-serif;font-weight:400;font-size:14px;color:var(--muted);white-space:normal}
+  .row .ggpick{display:flex;gap:6px;flex:none}
+  .row .ggpick button{font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:18px;padding:8px 10px;border:2px solid var(--line);border-radius:8px;background:var(--panel);color:var(--ink)}
+  .row .ggpick button.on{background:var(--green);border-color:var(--green);color:var(--green-ink)}
 
   /* the Teams tab: two names a team, typed or checked against the sheet */
   .trow{display:flex;align-items:center;gap:8px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:8px 10px;margin-top:8px}
@@ -208,10 +213,12 @@
 <div class="screen" id="screen"></div>
 <script src="points.js?v=2f7a0422bb"></script>
 <script src="record.js?v=8cd7245d73"></script>
+<script src="gg.js?v=4409e11a82"></script>
 <script>
 (function(){
   "use strict";
   var Pts = window.Points || {};
+  var GG = window.GG || {};
 
   /* A cached points.js is the one way this page can white-screen: index.html
      updates, the browser keeps yesterday's rules file, and the first call to
@@ -317,7 +324,7 @@
   /* Which version this page is: shown small on the board and in Setup, and
      in the tab title, so "did the club TV take the reload?" has an answer
      (Fable's review, 2026-09-13). Bump it when the page changes. */
-  var MG_VERSION = "v2.9";
+  var MG_VERSION = "v3.0";
   var q = new URLSearchParams(location.search);
   if (q.get("api")) MG_API = q.get("api");
   var ENTRY = q.get("enter") === "1";
@@ -937,6 +944,13 @@
 
     var pad = h("div",{class:"pad"});
     if(!TEAMS.length) pad.appendChild(h("div",{class:"warnbox",text:"No teams yet. Add them on the Teams tab."}));
+    if(getGG() && TEAMS.length){
+      if(!ggAsked){ ggAsked = true; ggFetch().then(function(){ if(tab === "scores") renderEntry(); }, function(){}); }
+      var offer = ggOffer();
+      if(offer >= 0) pad.appendChild(h("button",{class:"bigbtn solid",text:"Match " + (offer+1) + " is on Golf Genius — load it?",
+        onclick:function(){ round0 = offer; renderEntry(); ggOpen(offer); }}));
+      if(offer !== round0) pad.appendChild(h("button",{class:"bigbtn",text:"Get match " + (round0+1) + " from Golf Genius",onclick:function(){ ggOpen(round0); }}));
+    }
     TEAMS.forEach(function(pair,i){
       pad.appendChild(h("div",{class:"row"+(points[i][round0]===null?"":" done"),id:"row"+i},[
         h("div",{class:"nm",text:Pts.teamName(pair) || "Team " + (i+1)}),
@@ -1067,6 +1081,7 @@
   /* THE SETUP TAB: the board, the shape of the event, and the money. */
   function setupTab(){
     var R = SETUP.rounds, N = SETUP.places, S2 = SETUP.second;
+    if(getGG() && !ggAsked) ggCheck();
     var pad = h("div",{class:"pad"});
     function label(text){ return h("label",{text:text,style:"margin-top:12px"}); }
 
@@ -1091,7 +1106,13 @@
       h("div",{class:"sect",text:"This event"}),
       h("label",{text:"Matches"}),
       choiceButtons(Pts.ROUND_CHOICES, R, function(v){ setRounds(v); SETUP = localSetup(); renderEntry(); },
-        function(v){ return v + " matches"; })
+        function(v){ return v + " matches"; }),
+      /* Kyle, 2026-10-02: "I know the golf genius link before the tournament
+         starts" and "Let me enter the link by hand". Checked as it is saved. */
+      label("Golf Genius link — the tournament's page"),
+      h("input",{type:"url",value:getGG(),placeholder:"https://www.golfgenius.com/pages/…",
+        onchange:function(){ setGG(this.value.trim()); ggCheck(); }}),
+      h("div",{class:"note",style:"padding:6px 0 0",text:ggSetupNote()})
       /* No points settings — no scale, no highest, no lowest. Kyle,
          2026-09-13: "don't ever create any check that relies on points". */
     ]));
@@ -1195,6 +1216,7 @@
     setFinal(false); setPrizes([0,0,0]);
     var s = getSecond(); s.amount = 0; setSecond(s);
     setEvent("");
+    setGG("");   /* each event has its own Golf Genius page */
     SETUP = localSetup();
     /* Kyle, 2026-10-01: Setup → Start a new tournament → clear the teams left
        him on Teams with "Add a team" and no list, the Load button out of
@@ -1391,6 +1413,138 @@
     if(row) row.className = "row" + (points[i][round0]===null?"":" done");
     if(btn){ btn.textContent = show(points[i][round0]); btn.className = "val" + (points[i][round0]===null?" empty":""); }
     var c = document.getElementById("count"); if(c) c.textContent = count();
+  }
+
+  /* ---------- GOLF GENIUS (v3.0) ----------
+     Kyle, 2026-10-02, after a seat read the per-player page twice: the
+     tournament's Golf Genius link on Setup, and Get match N from Golf Genius
+     on Scores. Which page, and the reading check, are in gg.js. It only fills
+     a match he has looked over and saved; hand entry is untouched, and a score
+     he typed changes only if he picks Golf Genius's for that team. */
+  var GGSTORE = "vtp_gg", GGSRC = "vtp_gg_src";
+  var ggData = null, ggWhen = 0, ggNote = "", ggAsked = false;
+  function getGG(){ return read(GGSTORE) || ""; }
+  function setGG(v){ write(GGSTORE, v || ""); write(GGSRC, ""); ggData = null; ggNote = ""; ggAsked = false; }
+  function ggFail(msg){ var e = new Error(msg); e.mine = true; return e; }
+  function ggText(url){
+    return fetch(url, { cache:"no-store" }).then(function(r){ if(r.ok === false) throw ggFail("Golf Genius did not answer"); return r.text(); });
+  }
+  /* the link → the team standings page (remembered for that link), read and checked */
+  function ggFetch(){
+    var link = GG.cleanLink(getGG());
+    if(!link) return Promise.reject(ggFail("That isn't a Golf Genius link"));
+    function tryList(list){
+      if(!list.length) return Promise.reject(ggFail("Couldn't find the team standings on that Golf Genius page"));
+      return ggText(list[0]).then(function(html){
+        var st = GG.standings(html);
+        if(st){ write(GGSRC, JSON.stringify({ link:link, src:list[0] })); return st; }
+        return tryList(list.slice(1));
+      }, function(){ return tryList(list.slice(1)); });
+    }
+    function discover(){
+      if(/\/v2tournaments\/\d+/.test(link)) return tryList([link]);
+      var lg = GG.league(link);
+      return (lg ? Promise.resolve(lg) : ggText(link).then(function(html){
+        var l = GG.league(html); if(!l) throw ggFail("That Golf Genius page has no tournament results on it"); return l;
+      })).then(function(l){ return ggText(GG.widget(l)); }).then(function(html){ return tryList(GG.candidates(html)); });
+    }
+    var saved = readJSON(GGSRC);
+    var p = (saved && saved.link === link && saved.src)
+      ? ggText(saved.src).then(function(html){ var st = GG.standings(html); if(!st) throw ggFail("moved"); return st; }).catch(discover)
+      : discover();
+    return p.then(function(st){
+      var bad = GG.unbalanced(st);
+      if(bad.length) throw ggFail("Golf Genius's points don't add up to its own total for " + bad[0].name + " — enter by hand");
+      ggData = st; ggWhen = Date.now();
+      return st;
+    }).catch(function(e){
+      throw (e && e.mine) ? e : ggFail("Couldn't reach Golf Genius — no signal?");
+    });
+  }
+  function ggSetupNote(){ return getGG() ? ggNote : ""; }
+  function ggCheck(){
+    ggAsked = true;
+    if(!getGG()){ ggNote = ""; if(tab === "setup") renderEntry(); return; }
+    ggNote = "Checking Golf Genius…";
+    ggFetch().then(function(st){
+      var m = GG.match(TEAMS, st), found = m.filter(function(x){ return x.g >= 0; }).length;
+      var odd = m.map(function(x, i){ return x.how === "spelled differently" ? st.teams[x.g].name : x.g < 0 ? Pts.teamName(TEAMS[i]) + " (not found)" : ""; }).filter(Boolean);
+      ggNote = st.event + " · " + st.rounds.length + " rounds: " + st.rounds.join(", ") +
+        " · " + found + " of " + TEAMS.length + " teams found" +
+        (st.rounds.length !== SETUP.rounds ? " · Golf Genius has " + st.rounds.length + " rounds; this event is set to " + SETUP.rounds + " matches" : "") +
+        (odd.length ? " · Check: " + odd.join(" · ") : "");
+    }, function(e){ ggNote = e.message; }).then(function(){ if(tab === "setup") renderEntry(); });
+  }
+  /* the first match that is empty on this phone and has points on Golf Genius */
+  function ggOffer(){
+    if(!ggData) return -1;
+    for(var k = 0; k < SETUP.rounds; k++){
+      if(points.some(function(p){ return p[k] !== null; })) continue;
+      if(GG.plan(TEAMS, points, k, ggData).some(function(r){ return r.kind === "new"; })) return k;
+    }
+    return -1;
+  }
+  function ggOpen(r){
+    var inner = h("div",{class:"sheetin"},[
+      h("div",{class:"sheetnm",text:"Match " + (r+1) + " from Golf Genius"}),
+      h("div",{class:"sheetsub",text:"Reading Golf Genius…"})
+    ]);
+    var sheet = h("div",{class:"sheet",onclick:function(e){ if(e.target === sheet) close(); }},[inner]);
+    function close(){ if(sheet.parentNode) sheet.parentNode.removeChild(sheet); }
+    document.body.appendChild(sheet);
+    ggFetch().then(function(st){ close(); ggReview(r, st); }, function(e){
+      inner.innerHTML = "";
+      inner.appendChild(h("div",{class:"sheetnm",text:"Match " + (r+1) + " from Golf Genius"}));
+      inner.appendChild(h("div",{class:"warnbox",text:e.message}));
+      inner.appendChild(h("div",{class:"sheetfoot"},[ h("button",{text:"Close",onclick:close}) ]));
+    });
+  }
+  var GG_WORDS = { same:"already in", playing:"on the course", none:"not posted yet" };
+  function ggReview(r, st){
+    var rows = GG.plan(TEAMS, points, r, st), take = {};
+    rows.forEach(function(x){ take[x.i] = x.kind === "new"; });
+    var holder = h("div"), saveBtn = h("button",{class:"save"});
+    function draw(){
+      holder.innerHTML = "";
+      rows.forEach(function(x){
+        var nm = h("div",{class:"nm"},[ h("div",{text:Pts.teamName(TEAMS[x.i]) || "Team " + (x.i+1)}) ]);
+        if(x.how === "spelled differently") nm.appendChild(h("div",{class:"ggsub",text:"Golf Genius: " + x.name}));
+        var right;
+        if(x.kind === "new") right = h("div",{class:"ggv",text:show(x.gg)});
+        else if(x.kind === "differs") right = h("div",{class:"ggpick"},[
+          h("button",{class:take[x.i] ? "" : "on",text:"Keep " + show(x.mine),onclick:function(){ take[x.i] = false; draw(); }}),
+          h("button",{class:take[x.i] ? "on" : "",text:"Take " + show(x.gg),onclick:function(){ take[x.i] = true; draw(); }})
+        ]);
+        else if(x.kind === "missing") right = h("div",{class:"ggsub",style:"flex:none;max-width:45%;text-align:right",
+          text:(x.how === "more than one" ? "two teams fit" : "not on Golf Genius") + " — enter by hand"});
+        else right = h("div",{class:"ggsub",style:"flex:none",text:(x.kind === "same" ? show(x.gg) + " " : "") + GG_WORDS[x.kind]});
+        holder.appendChild(h("div",{class:"row" + (take[x.i] || x.kind === "same" ? " done" : "")},[nm, right]));
+      });
+      var k = rows.filter(function(x){ return take[x.i]; }).length;
+      saveBtn.textContent = k ? "Save " + k : "Nothing new";
+    }
+    draw();
+    var sheet = h("div",{class:"sheet",onclick:function(e){ if(e.target === sheet) close(); }},[
+      h("div",{class:"sheetin"},[
+        h("div",{class:"sheetnm",text:"Match " + (r+1) + " from Golf Genius"}),
+        h("div",{class:"sheetsub",text:(r < st.rounds.length ? st.rounds[r] : "Golf Genius has only " + st.rounds.length + " rounds") + " · read " + clock(ggWhen)}),
+        holder,
+        /* pinned to the bottom: 31 teams is a long list, and Save is the point */
+        h("div",{class:"sheetfoot",style:"position:sticky;bottom:-20px;background:var(--panel);padding:10px 0 20px;margin-bottom:-20px"},[ h("button",{text:"Cancel",onclick:function(){ close(); }}), saveBtn ])
+      ])
+    ]);
+    saveBtn.onclick = function(){
+      var k = 0;
+      rows.forEach(function(x){ if(take[x.i]){ points[x.i][r] = Pts.score(x.gg); k++; } });
+      close();
+      if(!k) return;
+      save();
+      round0 = r; tab = "scores";
+      postState = "Match " + (r+1) + ": " + k + " from Golf Genius — Send to TV to show it";
+      renderEntry();
+    };
+    function close(){ if(sheet.parentNode) sheet.parentNode.removeChild(sheet); }
+    document.body.appendChild(sheet);
   }
 
   /* ---------- settings on this phone ---------- */
