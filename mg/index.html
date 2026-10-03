@@ -139,6 +139,13 @@
   .bigbtn{display:block;width:100%;margin-top:10px;font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:22px;padding:14px 0;
     border:2px solid var(--green);border-radius:12px;background:var(--panel);color:var(--green)}
   .bigbtn.solid{background:var(--green);color:var(--green-ink)}
+  .bigbtn.ggred{background:#B3261E;border-color:#B3261E;color:#fff}
+  .toast{position:fixed;left:12px;right:12px;bottom:84px;z-index:50;border-radius:12px;padding:16px 14px;text-align:center;
+    font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:28px;box-shadow:0 6px 24px rgba(0,0,0,.3)}
+  .toast.ok{background:var(--green);color:var(--green-ink)}
+  .toast.no{background:#B3261E;color:#fff}
+  .row .val.ggdiff{width:auto;min-width:104px;padding:15px 8px;font-size:24px;border-color:#B3261E;color:#B3261E}
+  .ggbad{background:#B3261E;color:#fff;border-radius:10px;padding:10px 12px;margin-top:10px;font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:20px}
   .bigbtn.quiet{border-color:var(--line);color:var(--muted)}
 
   /* the panel of the only values a match score can be, and the confirm sheets */
@@ -327,7 +334,7 @@
   /* Which version this page is: shown small on the board and in Setup, and
      in the tab title, so "did the club TV take the reload?" has an answer
      (Fable's review, 2026-09-13). Bump it when the page changes. */
-  var MG_VERSION = "v3.3";
+  var MG_VERSION = "v3.4";
   var q = new URLSearchParams(location.search);
   if (q.get("api")) MG_API = q.get("api");
   var ENTRY = q.get("enter") === "1";
@@ -961,18 +968,13 @@
 
     var pad = h("div",{class:"pad"});
     if(!TEAMS.length) pad.appendChild(h("div",{class:"warnbox",text:"No teams yet. Add them on the Teams tab."}));
-    if(getGG() && TEAMS.length){
-      if(!ggAsked){ ggAsked = true; ggFetch().then(function(){ if(tab === "scores") renderEntry(); }, function(){}); }
-      var offer = ggOffer();
-      if(offer >= 0) pad.appendChild(h("button",{class:"bigbtn solid",text:"Match " + (offer+1) + " is on Golf Genius — load it?",
-        onclick:function(){ round0 = offer; renderEntry(); ggOpen(offer); }}));
-      if(offer !== round0) pad.appendChild(h("button",{class:"bigbtn",text:"Get match " + (round0+1) + " from Golf Genius",onclick:function(){ ggOpen(round0); }}));
-    }
+    var diffs = ggScores(pad);
     TEAMS.forEach(function(pair,i){
+      var d = diffs[i + ":" + round0];
       pad.appendChild(h("div",{class:"row"+(points[i][round0]===null?"":" done"),id:"row"+i},[
         h("div",{class:"nm",text:Pts.teamName(pair) || "Team " + (i+1)}),
-        h("button",{class:"val"+(points[i][round0]===null?" empty":""),id:"val"+i,
-          text:show(points[i][round0]), onclick:function(){ pick(i); }})
+        h("button",{class:"val"+(points[i][round0]===null?" empty":"")+(d?" ggdiff":""),id:"val"+i,
+          text:show(points[i][round0]) + (d ? " (GG " + show(d.gg) + ")" : ""), onclick:function(){ pick(i); }})
       ]));
     });
     pad.appendChild(h("div",{class:"note",text:"Tap a team to set its points. Saved on this phone straight away; Send to TV puts them on the club screen."}));
@@ -1441,7 +1443,7 @@
   var GGSTORE = "vtp_gg", GGSRC = "vtp_gg_src";
   var ggData = null, ggWhen = 0, ggNote = "", ggAsked = false;
   function getGG(){ return read(GGSTORE) || ""; }
-  function setGG(v){ write(GGSTORE, v || ""); write(GGSRC, ""); ggData = null; ggNote = ""; ggAsked = false; }
+  function setGG(v){ write(GGSTORE, v || ""); write(GGSRC, ""); ggData = null; ggNote = ""; ggAsked = false; GGFILE = null; ggLink(); }
   function ggFail(msg){ var e = new Error(msg); e.mine = true; return e; }
   /* each ask gets 20 s (Kyle, 2026-10-03: on the course's slow signal it sat
      there with no end); then it says so and hand entry is right there */
@@ -1503,29 +1505,88 @@
         (odd.length ? " · Check: " + odd.join(" · ") : "");
     }, function(e){ ggNote = e.message; }).then(function(){ if(tab === "setup") renderEntry(); });
   }
-  /* the first match that is empty on this phone and has points on Golf Genius */
-  function ggOffer(){
-    if(!ggData) return -1;
-    for(var k = 0; k < SETUP.rounds; k++){
-      if(points.some(function(p){ return p[k] !== null; })) continue;
-      if(GG.plan(TEAMS, points, k, ggData).some(function(r){ return r.kind === "new"; })) return k;
-    }
-    return -1;
+  /* ---------- Golf Genius through a computer at home (v3.4, Kyle 2026-10-03) ----------
+     "check golf genius every 15 minutes between 9am and 9pm". The computer
+     reads the standings (tools/gg-watch.js) and posts them to the channel
+     board "vtp-gg"; the phone reads that small file, never Golf Genius itself,
+     so slow signal on the course does not matter. The phone sends the link
+     the computer follows to board "vtp-gglink" the moment Kyle pastes it.
+     Hand entry never waits on any of this. */
+  var GGKEEP = "vtp_gg_keep", GGLINKSENT = "vtp_gg_linksent";
+  var GGFILE = null, ggFileErr = "", ggFileBusy = false, GG_STALE = 20 * 60000;
+  function chanURL(board){ return MG_API + (MG_API.indexOf("?")>=0?"&":"?") + "board=" + board + "&t=" + Date.now(); }
+  function ggLink(){
+    if(!MG_API || !getKey() || read(GGLINKSENT) === getGG()) return;
+    var link = getGG();
+    var body = { key:getKey(), board:"vtp-gglink", round:{ format:"vtp-gglink-v1", posted:new Date().toISOString(), link:link } };
+    fetch(MG_API, { method:"POST", redirect:"follow", headers:{"Content-Type":"text/plain;charset=utf-8"}, body:JSON.stringify(body) })
+      .then(function(r){ return r.json(); })
+      .then(function(j){ if(j && j.ok && getGG() === link) write(GGLINKSENT, link); })
+      .catch(function(){});   /* tried again on the next open */
   }
-  function ggOpen(r){
-    var inner = h("div",{class:"sheetin"},[
-      h("div",{class:"sheetnm",text:"Match " + (r+1) + " from Golf Genius"}),
-      h("div",{class:"sheetsub",text:"Reading Golf Genius…"})
-    ]);
-    var sheet = h("div",{class:"sheet",onclick:function(e){ if(e.target === sheet) close(); }},[inner]);
-    function close(){ if(sheet.parentNode) sheet.parentNode.removeChild(sheet); }
-    document.body.appendChild(sheet);
-    ggFetch().then(function(st){ close(); ggReview(r, st); }, function(e){
-      inner.innerHTML = "";
-      inner.appendChild(h("div",{class:"sheetnm",text:"Match " + (r+1) + " from Golf Genius"}));
-      inner.appendChild(h("div",{class:"warnbox",text:e.message}));
-      inner.appendChild(h("div",{class:"sheetfoot"},[ h("button",{text:"Close",onclick:close}) ]));
+  function ggFile(){
+    if(!MG_API || ggFileBusy || !getGG()) return;
+    ggFileBusy = true;
+    var before = ggStatus().text;
+    fetch(chanURL("vtp-gg")).then(function(r){ return r.json(); }).then(function(j){
+      ggFileErr = "";
+      GGFILE = (j && j.format === "vtp-gg-v1") ? j : null;
+    }, function(){ ggFileErr = "Can't reach the channel — no signal?"; }).then(function(){
+      ggFileBusy = false;
+      if(ENTRY && tab === "scores" && (GGFILE || ggStatus().text !== before)) renderEntry();
     });
+  }
+  /* the file, when it is for the link on this phone and was read cleanly */
+  function ggUsable(){
+    if(!GGFILE || GGFILE.error || !Array.isArray(GGFILE.teams)) return null;
+    if(GG.cleanLink(GGFILE.link) !== GG.cleanLink(getGG())) return null;
+    return GGFILE;
+  }
+  function ggStatus(){
+    if(ggFileErr) return { text:ggFileErr, bad:true };
+    if(!GGFILE || GG.cleanLink(GGFILE.link) !== GG.cleanLink(getGG()))
+      return { text:"Golf Genius: waiting for the computer to read it (every 15 minutes, 9 AM to 9 PM)", bad:false };
+    var at = Date.parse(GGFILE.checked), now = new Date(), hr = now.getHours() + now.getMinutes() / 60;
+    if(GGFILE.error) return { text:"Golf Genius " + clock(at) + ": " + GGFILE.error + " — use the board", bad:true };
+    if(now - at > GG_STALE && hr >= 9.33 && hr < 21.25)
+      return { text:"Golf Genius not checked since " + clock(at) + " — use the board", bad:true };
+    return { text:(GGFILE.event ? GGFILE.event + " · " : "") + "Golf Genius checked " + clock(at), bad:false };
+  }
+  /* each score Golf Genius has final that differs from the one on this phone,
+     unless Kyle kept his against that very Golf Genius number */
+  function ggDiffs(st){
+    var keep = readJSON(GGKEEP) || {}, out = {};
+    for(var k = 0; k < SETUP.rounds; k++) GG.plan(TEAMS, points, k, st).forEach(function(x){
+      if(x.kind === "differs" && keep[x.i + ":" + k] !== x.gg) out[x.i + ":" + k] = { i:x.i, k:k, gg:x.gg };
+    });
+    return out;
+  }
+  /* the Golf Genius lines on Scores; returns the differences, for the rows */
+  function ggScores(pad){
+    if(!getGG() || !TEAMS.length) return {};
+    if(!ggAsked){ ggAsked = true; ggLink(); ggFile(); }
+    var s = ggStatus();
+    pad.appendChild(h("div",{class:s.bad ? "ggbad" : "note",style:s.bad ? "" : "padding:8px 2px 0",text:s.text}));
+    var st = ggUsable();
+    if(!st) return {};
+    var diffs = ggDiffs(st), keys = Object.keys(diffs);
+    if(keys.length){
+      var ms = []; keys.forEach(function(key){ var m = diffs[key].k + 1; if(ms.indexOf(m) < 0) ms.push(m); });
+      ms.sort(function(a, b){ return a - b; });
+      pad.appendChild(h("button",{class:"bigbtn ggred",
+        text:"Golf Genius differs on " + keys.length + " score" + (keys.length > 1 ? "s" : "") + " — Match " + ms.join(", "),
+        onclick:function(){ round0 = ms[0] - 1; renderEntry(); ggReview(ms[0] - 1, st); }}));
+    }
+    /* Kyle: "Match 4  14 scores available ... Even if I already clicked it
+       so what, it just confirms those scores are in" */
+    for(var k = 0; k < SETUP.rounds; k++)(function(k){
+      var n = GG.plan(TEAMS, points, k, st).filter(function(x){ return x.kind === "new" || x.kind === "same" || x.kind === "differs"; }).length;
+      if(!n) return;
+      pad.appendChild(h("button",{class:"bigbtn" + (k === round0 ? " solid" : ""),
+        text:"Match " + (k+1) + " — " + (n === TEAMS.length ? "all " + n : n) + " score" + (n > 1 ? "s" : "") + " available",
+        onclick:function(){ round0 = k; renderEntry(); ggReview(k, st); }}));
+    })(k);
+    return diffs;
   }
   var GG_WORDS = { same:"already in", playing:"not finished yet", none:"not posted yet" };
   function ggReview(r, st){
@@ -1549,13 +1610,14 @@
         holder.appendChild(h("div",{class:"row" + (take[x.i] || x.kind === "same" ? " done" : "")},[nm, right]));
       });
       var k = rows.filter(function(x){ return take[x.i]; }).length;
-      saveBtn.textContent = k ? "Save " + k : "Nothing new";
+      var kept = rows.some(function(x){ return x.kind === "differs" && !take[x.i]; });
+      saveBtn.textContent = k ? "Save " + k : (kept ? "Keep mine" : "Nothing new");
     }
     draw();
     var sheet = h("div",{class:"sheet",onclick:function(e){ if(e.target === sheet) close(); }},[
       h("div",{class:"sheetin"},[
         h("div",{class:"sheetnm",text:"Match " + (r+1) + " from Golf Genius"}),
-        h("div",{class:"sheetsub",text:(r < st.rounds.length ? st.rounds[r] : "Golf Genius has only " + st.rounds.length + " rounds") + " · read " + clock(ggWhen)}),
+        h("div",{class:"sheetsub",text:(r < st.rounds.length ? st.rounds[r] : "Golf Genius has only " + st.rounds.length + " rounds") + " · checked " + clock(Date.parse(st.checked))}),
         holder,
         /* pinned to the bottom: 31 teams is a long list, and Save is the point */
         h("div",{class:"sheetfoot",style:"position:sticky;bottom:-20px;background:var(--panel);padding:10px 0 20px;margin-bottom:-20px"},[ h("button",{text:"Cancel",onclick:function(){ close(); }}), saveBtn ])
@@ -1563,9 +1625,16 @@
     ]);
     saveBtn.onclick = function(){
       var k = 0;
-      rows.forEach(function(x){ if(take[x.i]){ points[x.i][r] = Pts.score(x.gg); k++; } });
+      /* Keep on a difference is remembered against that Golf Genius number, so
+         the red warning stops, and comes back if Golf Genius changes it again */
+      var keep = readJSON(GGKEEP) || {};
+      rows.forEach(function(x){
+        if(take[x.i]){ points[x.i][r] = Pts.score(x.gg); k++; delete keep[x.i + ":" + r]; }
+        else if(x.kind === "differs") keep[x.i + ":" + r] = x.gg;
+      });
+      write(GGKEEP, JSON.stringify(keep));
       close();
-      if(!k) return;
+      if(!k){ renderEntry(); return; }
       save();
       round0 = r; tab = "scores";
       postState = "Match " + (r+1) + ": " + k + " from Golf Genius — Send to TV to show it";
@@ -1662,11 +1731,25 @@
       headers:{"Content-Type":"text/plain;charset=utf-8"},
       body: JSON.stringify({ key:getKey(), board:"vtp", round:round })
     }).then(function(r){ return r.json(); })
-      .then(function(j){ if(j && j.ok){ sendEmpty = false; flash("Sent to TV ✓ " + clock(Date.now())); done(true); } else { flash("Not sent: " + ((j&&j.error)||"?")); done(false); } })
-      .catch(function(e){ flash("Not sent: " + (e && e.name === "AbortError" ? "no answer" : e.message)); done(false); })
+      .then(function(j){ if(j && j.ok){ sendEmpty = false; flash("Sent to TV ✓ " + clock(Date.now())); toast("Sent to TV ✓ " + clock(Date.now()) + " · " + round.teams.length + " teams", true); done(true); }
+        else { flash("Not sent: " + ((j&&j.error)||"?")); toast("NOT sent: " + ((j&&j.error)||"?"), false); done(false); } })
+      .catch(function(e){ var why = (e && e.name === "AbortError" ? "no answer in 20 seconds — no signal?" : (e && e.message) || "no signal?");
+        flash("Not sent: " + why); toast("NOT sent to TV: " + why + " Tap Send to TV again.", false); done(false); })
       .then(function(){ posting = false; if(timer) clearTimeout(timer); });
   }
   function flash(m){ postState = m; var t = document.querySelector(".top .right"); if(t) t.lastChild.textContent = m; }
+  /* Kyle, 2026-10-03: "It never really acknowledges if things were sent when
+     you tap it." The answer to Send to TV in big type over the screen: green
+     when the script took it, red when it did not, gone after 4 s or a tap. */
+  var toastEl = null, toastClock = null;
+  function toast(m, good){
+    if(toastEl && toastEl.parentNode) toastEl.parentNode.removeChild(toastEl);
+    if(toastClock) clearTimeout(toastClock);
+    toastEl = h("div",{class:"toast " + (good ? "ok" : "no"),text:m,onclick:function(){ if(this.parentNode) this.parentNode.removeChild(this); }});
+    document.body.appendChild(toastEl);
+    var mine = toastEl;
+    toastClock = setTimeout(function(){ if(mine.parentNode) mine.parentNode.removeChild(mine); }, good ? 4000 : 8000);
+  }
 
   /* One ask at a time, with a clock on it. Asked every 20 s regardless, a slow
      old answer could land after a newer one and put the old scores back on the
@@ -1783,6 +1866,8 @@
        Start a new tournament, or teams from a link, one reopen pulled the
        finished event back — old teams, scores, money and Final. */
     if(MG_API && freshPhone() && !q.get("teams")) grab();
+    /* the computer posts every 15 minutes; the phone looks every 2 */
+    setInterval(function(){ if(tab === "scores" && getGG() && !document.hidden) ggFile(); }, 120000);
   }
   else{
     renderBoard();
