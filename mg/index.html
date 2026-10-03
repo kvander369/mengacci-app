@@ -337,7 +337,7 @@
   /* Which version this page is: shown small on the board and in Setup, and
      in the tab title, so "did the club TV take the reload?" has an answer
      (Fable's review, 2026-09-13). Bump it when the page changes. */
-  var MG_VERSION = "v3.5";
+  var MG_VERSION = "v3.6";
   var q = new URLSearchParams(location.search);
   if (q.get("api")) MG_API = q.get("api");
   var ENTRY = q.get("enter") === "1";
@@ -1623,7 +1623,7 @@
       });
       var k = rows.filter(function(x){ return take[x.i]; }).length;
       var kept = rows.some(function(x){ return x.kind === "differs" && !take[x.i]; });
-      saveBtn.textContent = k ? "Save " + k : (kept ? "Keep mine" : "Nothing new");
+      saveBtn.textContent = k ? "Save " + k + " and send to TV" : (kept ? "Keep mine" : "Nothing new");
     }
     draw();
     var sheet = h("div",{class:"sheet",onclick:function(e){ if(e.target === sheet) close(); }},[
@@ -1649,8 +1649,12 @@
       if(!k){ renderEntry(); return; }
       save();
       round0 = r; tab = "scores";
-      postState = "Match " + (r+1) + ": " + k + " from Golf Genius — Send to TV to show it";
+      postState = "Match " + (r+1) + ": " + k + " from Golf Genius";
       renderEntry();
+      /* one step (Kyle, 2026-10-03: "yes let's do that in one step"): what he
+         checked and saved goes to the TV straight away, with the same big
+         green or red answer as Send to TV */
+      post();
     };
     function close(){ if(sheet.parentNode) sheet.parentNode.removeChild(sheet); }
     document.body.appendChild(sheet);
