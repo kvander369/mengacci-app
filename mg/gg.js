@@ -120,8 +120,13 @@
         var part = cs.slice(at2, at2 + g.cols.length); at2 += g.cols.length;
         var pi = g.cols.indexOf('points'), si = g.cols.indexOf('status');
         var status = si >= 0 ? part[si].text : '';
-        pts.push(pi >= 0 ? num(part[pi].text) : null);
-        live.push(status !== '' && status !== '-');
+        var v = pi >= 0 ? num(part[pi].text) : null;
+        pts.push(v);
+        /* A round is final only when its Status is blank. Seen 2026-10-03 mid
+           round 3: every team still out showed Status "-" and 0.00 points,
+           and the app took the 0.00 as a score. "-" with no number is a
+           round not started. */
+        live.push(status !== '' && (status !== '-' || v !== null));
       });
       teams.push({ name: decode(nm[1]).replace(/\s+/g, ' ').trim(), players: players(nm[1]), pts: pts, live: live, total: num(cs[cs.length - 1].text) });
     }
@@ -163,7 +168,7 @@
     return d[a.length][b.length];
   }
   /* how far apart two last names are: 0 the same, 2–3 a misspelling (Golf
-     Genius has Kyle as "Vandrelick"), 9 different people. A first name is only
+     Genius has Kyle as "Vandrelick" — the club enters him that way on purpose), 9 different people. A first name is only
      a tiebreak — Bob on Golf Genius is Robert on the phone. */
   function gap(a, b) {
     if (a.last === b.last) return 0;

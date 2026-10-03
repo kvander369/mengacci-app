@@ -216,7 +216,7 @@
 <div class="screen" id="screen"></div>
 <script src="points.js?v=2f7a0422bb"></script>
 <script src="record.js?v=8cd7245d73"></script>
-<script src="gg.js?v=4409e11a82"></script>
+<script src="gg.js?v=eac66005bf"></script>
 <script>
 (function(){
   "use strict";
@@ -327,7 +327,7 @@
   /* Which version this page is: shown small on the board and in Setup, and
      in the tab title, so "did the club TV take the reload?" has an answer
      (Fable's review, 2026-09-13). Bump it when the page changes. */
-  var MG_VERSION = "v3.2";
+  var MG_VERSION = "v3.3";
   var q = new URLSearchParams(location.search);
   if (q.get("api")) MG_API = q.get("api");
   var ENTRY = q.get("enter") === "1";
@@ -1443,8 +1443,19 @@
   function getGG(){ return read(GGSTORE) || ""; }
   function setGG(v){ write(GGSTORE, v || ""); write(GGSRC, ""); ggData = null; ggNote = ""; ggAsked = false; }
   function ggFail(msg){ var e = new Error(msg); e.mine = true; return e; }
+  /* each ask gets 20 s (Kyle, 2026-10-03: on the course's slow signal it sat
+     there with no end); then it says so and hand entry is right there */
+  var GG_WAIT = 20000;
   function ggText(url){
-    return fetch(url, { cache:"no-store" }).then(function(r){ if(r.ok === false) throw ggFail("Golf Genius did not answer"); return r.text(); });
+    var ctl = window.AbortController ? new AbortController() : null;
+    var clockId = setTimeout(function(){ if(ctl) ctl.abort(); }, GG_WAIT);
+    return fetch(url, ctl ? { cache:"no-store", signal:ctl.signal } : { cache:"no-store" }).then(function(r){
+      if(r.ok === false) throw ggFail("Golf Genius did not answer");
+      return r.text();
+    }).catch(function(e){
+      if(e && e.name === "AbortError") var slow = ggFail("Golf Genius took more than 20 seconds — slow signal. Try again, or enter by hand"); slow.slow = true; throw slow;
+      throw e;
+    }).then(function(t){ clearTimeout(clockId); return t; }, function(e){ clearTimeout(clockId); throw e; });
   }
   /* the link → the team standings page (remembered for that link), read and checked */
   function ggFetch(){
@@ -1456,7 +1467,7 @@
         var st = GG.standings(html);
         if(st){ write(GGSRC, JSON.stringify({ link:link, src:list[0] })); return st; }
         return tryList(list.slice(1));
-      }, function(){ return tryList(list.slice(1)); });
+      }, function(e){ if(e && e.slow) throw e; return tryList(list.slice(1)); });
     }
     function discover(){
       if(/\/v2tournaments\/\d+/.test(link)) return tryList([link]);
@@ -1467,7 +1478,7 @@
     }
     var saved = readJSON(GGSRC);
     var p = (saved && saved.link === link && saved.src)
-      ? ggText(saved.src).then(function(html){ var st = GG.standings(html); if(!st) throw ggFail("moved"); return st; }).catch(discover)
+      ? ggText(saved.src).then(function(html){ var st = GG.standings(html); if(!st) throw ggFail("moved"); return st; }).catch(function(e){ if(e && e.slow) throw e; return discover(); })
       : discover();
     return p.then(function(st){
       var bad = GG.unbalanced(st);
@@ -1516,7 +1527,7 @@
       inner.appendChild(h("div",{class:"sheetfoot"},[ h("button",{text:"Close",onclick:close}) ]));
     });
   }
-  var GG_WORDS = { same:"already in", playing:"on the course", none:"not posted yet" };
+  var GG_WORDS = { same:"already in", playing:"not finished yet", none:"not posted yet" };
   function ggReview(r, st){
     var rows = GG.plan(TEAMS, points, r, st), take = {};
     rows.forEach(function(x){ take[x.i] = x.kind === "new"; });
