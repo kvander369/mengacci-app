@@ -337,7 +337,7 @@
   /* Which version this page is: shown small on the board and in Setup, and
      in the tab title, so "did the club TV take the reload?" has an answer
      (Fable's review, 2026-09-13). Bump it when the page changes. */
-  var MG_VERSION = "v3.8";
+  var MG_VERSION = "v3.9";
   var q = new URLSearchParams(location.search);
   if (q.get("api")) MG_API = q.get("api");
   var ENTRY = q.get("enter") === "1";
@@ -984,6 +984,15 @@
 
     var pad = h("div",{class:"pad"});
     if(!TEAMS.length) pad.appendChild(h("div",{class:"warnbox",text:"No teams yet. Add them on the Teams tab."}));
+    /* Kyle, 2026-10-04: "I could not find the final button" — it lives on
+       Setup, among the money. Once every team has every match in, it is
+       offered here too, on top. Same tapFinal: the money and missing-score
+       checks still apply. A presence check, never a points check. */
+    if(teamCount() && !missingScores().length){
+      if(getFinal()) pad.appendChild(h("div",{class:"note",style:"padding:0 0 10px",text:"Final is on: the TV shows the money. (To undo: Setup → Not yet.)"}));
+      else pad.appendChild(h("button",{class:"bigbtn solid",style:"margin:0 0 12px",text:"All scores in — Final: show the money on the TV",
+        onclick:function(){ tapFinal(true); }}));
+    }
     var diffs = ggScores(pad);
     TEAMS.forEach(function(pair,i){
       var d = diffs[i + ":" + round0];
@@ -1081,11 +1090,7 @@
        money. This asks about MISSING scores only — it never looks at what a
        score is ("don't ever create any check that relies on points"). A
        cancelled match is zeros, which are scores. */
-    var R = localSetup().rounds, missing = [];
-    TEAMS.forEach(function(p, i){
-      if(!(p[0] || p[1] || hasScores(i))) return;
-      for(var k = 0; k < R; k++) if(points[i][k] === null){ missing.push({ i:i, k:k }); }
-    });
+    var missing = missingScores();
     if(v && missing.length){
       var teams = {}, matches = {};
       missing.forEach(function(m){ teams[m.i] = 1; matches[m.k + 1] = 1; });
@@ -1096,6 +1101,15 @@
       return;
     }
     go();
+  }
+  /* every blank score of a team that is in, for the matches of this event */
+  function missingScores(){
+    var R = localSetup().rounds, missing = [];
+    TEAMS.forEach(function(p, i){
+      if(!(p[0] || p[1] || hasScores(i))) return;
+      for(var k = 0; k < R; k++) if(points[i][k] === null){ missing.push({ i:i, k:k }); }
+    });
+    return missing;
   }
   function hasScores(i){ return (points[i] || []).some(function(v){ return v !== null; }); }
   function removeTeam(i){
