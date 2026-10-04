@@ -337,7 +337,7 @@
   /* Which version this page is: shown small on the board and in Setup, and
      in the tab title, so "did the club TV take the reload?" has an answer
      (Fable's review, 2026-09-13). Bump it when the page changes. */
-  var MG_VERSION = "v3.6";
+  var MG_VERSION = "v3.7";
   var q = new URLSearchParams(location.search);
   if (q.get("api")) MG_API = q.get("api");
   var ENTRY = q.get("enter") === "1";
@@ -798,7 +798,11 @@
        rounds". His rule of 2026-09-13 still holds for the amounts: none is
        shown unless the money adds up to $100 a team. */
     var purseOK = !ready && !SETUP.final && Pts.moneyProblems(teamCount(), SETUP).length === 0;
-    var sunLive = anySunday && sunLeaders.length;
+    /* NO SUNDAY WINNER BEFORE FINAL. Kyle, 2026-10-04, with match 4 in play:
+       the banner named the Sunday leader beside the Sunday money, which reads
+       as the winner. Until Final the banner names nobody for the second pot;
+       the list's shading is the only hint, as for the main pot. */
+    var sunLive = ready && anySunday && sunLeaders.length;
     var turns = [];
     if(ready) pay.main.forEach(function(g){ turns.push({ main:g }); });
     else if(purseOK) turns.push({ purse:true });
@@ -818,13 +822,13 @@
     } else if(t && t.second){
       scr.appendChild(h("div",{class:"sun"},[
         h("span",{class:"lab",text:S2.name}),
-        anySunday && sunLeaders.length ? h("span",{class:"num",text:show(sunLeaders[0].sunday)}) : null,
-        h("span",{class:"who",text: anySunday && sunLeaders.length
+        sunLive ? h("span",{class:"num",text:show(sunLeaders[0].sunday)}) : null,
+        h("span",{class:"who",text: sunLive
           ? sunLeaders.map(function(r){ return r.name; }).join("   ·   ")
           : "Matches " + (R-1) + " and " + R}),
-        blocked ? h("span",{class:"why",text:(N === 1 ? "pot winner not eligible" : "main pot winners not eligible")}) : null,
+        blocked && sunLive ? h("span",{class:"why",text:(N === 1 ? "pot winner not eligible" : "main pot winners not eligible")}) : null,
         ready ? amt(Pts.share(S2.amount, anySunday ? sunLeaders.length : 0), sunLeaders.length)
-          : (purseOK && sunLive) ? amt(S2.amount, 1) : null
+          : null
       ]));
     } else if(t && t.purse){
       var pots = [];
