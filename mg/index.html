@@ -337,7 +337,7 @@
   /* Which version this page is: shown small on the board and in Setup, and
      in the tab title, so "did the club TV take the reload?" has an answer
      (Fable's review, 2026-09-13). Bump it when the page changes. */
-  var MG_VERSION = "v3.7";
+  var MG_VERSION = "v3.8";
   var q = new URLSearchParams(location.search);
   if (q.get("api")) MG_API = q.get("api");
   var ENTRY = q.get("enter") === "1";
@@ -1147,7 +1147,8 @@
       label("Golf Genius link — the tournament's page"),
       h("input",{type:"url",value:getGG(),placeholder:"https://www.golfgenius.com/pages/…",
         onchange:function(){ setGG(this.value.trim()); ggCheck(); }}),
-      h("div",{class:"note",style:"padding:6px 0 0",text:ggSetupNote()})
+      h("div",{class:"note",style:"padding:6px 0 0",text:ggSetupNote()}),
+      ggComputer()
       /* No points settings — no scale, no highest, no lowest. Kyle,
          2026-09-13: "don't ever create any check that relies on points". */
     ]));
@@ -1456,10 +1457,12 @@
      on Scores. Which page, and the reading check, are in gg.js. It only fills
      a match he has looked over and saved; hand entry is untouched, and a score
      he typed changes only if he picks Golf Genius's for that team. */
-  var GGSTORE = "vtp_gg", GGSRC = "vtp_gg_src";
-  var ggData = null, ggWhen = 0, ggNote = "", ggAsked = false;
+  var GGSTORE = "vtp_gg", GGSRC = "vtp_gg_src", GGAT = "vtp_gg_at";
+  var ggData = null, ggWhen = 0, ggNote = "", ggAsked = false, ggFileAsked = false;
   function getGG(){ return read(GGSTORE) || ""; }
-  function setGG(v){ write(GGSTORE, v || ""); write(GGSRC, ""); ggData = null; ggNote = ""; ggAsked = false; GGFILE = null; ggLink(); }
+  /* when the link was pasted: the computer gets 20 minutes to read it before
+     the phone asks whether its task is on */
+  function setGG(v){ write(GGSTORE, v || ""); write(GGSRC, ""); write(GGAT, String(Date.now())); ggData = null; ggNote = ""; ggAsked = false; ggFileAsked = false; GGFILE = null; ggLink(); }
   function ggFail(msg){ var e = new Error(msg); e.mine = true; return e; }
   /* each ask gets 20 s (Kyle, 2026-10-03: on the course's slow signal it sat
      there with no end); then it says so and hand entry is right there */
@@ -1508,6 +1511,14 @@
     });
   }
   function ggSetupNote(){ return getGG() ? ggNote : ""; }
+  /* Setup also says whether the computer is reading the link, so a task left
+     off is seen when the event is set up, not on the day */
+  function ggComputer(){
+    if(!getGG()) return null;
+    if(!ggFileAsked){ ggFileAsked = true; ggFile(); }
+    var s = ggStatus();
+    return h("div",{class:s.bad ? "ggbad" : "note",style:s.bad ? "" : "padding:6px 0 0",text:s.text});
+  }
   function ggCheck(){
     ggAsked = true;
     if(!getGG()){ ggNote = ""; if(tab === "setup") renderEntry(); return; }
@@ -1550,6 +1561,10 @@
     }, function(){ ggFileErr = "Can't reach the channel — no signal?"; }).then(function(){
       ggFileBusy = false;
       if(ENTRY && tab === "scores" && (GGFILE || ggStatus().text !== before)) renderEntry();
+      /* Setup redraws only when the line changes, and never under a box being
+         typed in, so the 2-minute look cannot eat a half-typed amount */
+      else if(ENTRY && tab === "setup" && ggStatus().text !== before &&
+        !(document.activeElement && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName))) renderEntry();
     });
   }
   /* the file, when it is for the link on this phone and was read cleanly */
@@ -1560,12 +1575,21 @@
   }
   function ggStatus(){
     if(ggFileErr) return { text:ggFileErr, bad:true };
-    if(!GGFILE || GG.cleanLink(GGFILE.link) !== GG.cleanLink(getGG()))
+    /* Kyle, 2026-10-04: the computer's task is off between tournaments and
+       "I will remember to start the pull script when I set up a tournament.
+       That could be written into the app to make sure i did it." So a link
+       the computer has not read, or stopped reading, asks about the task. */
+    var now = new Date(), hr = now.getHours() + now.getMinutes() / 60, hours = hr >= 9.33 && hr < 21.25;
+    var TASK = " — is the Golf Genius task on the computer turned on? Use the board";
+    if(!GGFILE || GG.cleanLink(GGFILE.link) !== GG.cleanLink(getGG())){
+      if(hours && now - (+read(GGAT) || 0) > GG_STALE)
+        return { text:"Golf Genius: the computer has not read this link" + TASK, bad:true };
       return { text:"Golf Genius: waiting for the computer to read it (every 15 minutes, 9 AM to 9 PM)", bad:false };
-    var at = Date.parse(GGFILE.checked), now = new Date(), hr = now.getHours() + now.getMinutes() / 60;
+    }
+    var at = Date.parse(GGFILE.checked);
     if(GGFILE.error) return { text:"Golf Genius " + clock(at) + ": " + GGFILE.error + " — use the board", bad:true };
-    if(now - at > GG_STALE && hr >= 9.33 && hr < 21.25)
-      return { text:"Golf Genius not checked since " + clock(at) + " — use the board", bad:true };
+    if(now - at > GG_STALE && hours)
+      return { text:"Golf Genius not checked since " + clock(at) + TASK, bad:true };
     return { text:(GGFILE.event ? GGFILE.event + " · " : "") + "Golf Genius checked " + clock(at), bad:false };
   }
   /* each score Golf Genius has final that differs from the one on this phone,
@@ -1887,7 +1911,7 @@
        finished event back — old teams, scores, money and Final. */
     if(MG_API && freshPhone() && !q.get("teams")) grab();
     /* the computer posts every 15 minutes; the phone looks every 2 */
-    setInterval(function(){ if(tab === "scores" && getGG() && !document.hidden) ggFile(); }, 120000);
+    setInterval(function(){ if((tab === "scores" || tab === "setup") && getGG() && !document.hidden) ggFile(); }, 120000);
   }
   else{
     renderBoard();
